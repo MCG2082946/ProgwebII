@@ -3,7 +3,12 @@ const mongoose = require('mongoose');
 const bookSchema = new mongoose.Schema({
   titulo: { type: String, required: true },
   autor: { type: String, required: true },
-  genero: { type: String, required: true },
+  // Aquí enlazamos la categoría usando ObjectId para relacionarla con Category.js
+  categoria: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Category', 
+    required: true 
+  },
   tipoTapa: { type: String, enum: ['dura', 'blanda'], default: 'blanda' },
   precio: { type: Number, required: true },
   stock: { type: Number, required: true, default: 0 },
