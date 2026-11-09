@@ -127,7 +127,7 @@ export default function Inicio({ user, setUser }) {
   const handleLoginSuccess = (userData) => {
     setUser(userData);
     setOpenLoginModal(false);
-    handleShowToast(`¡Bienvenido de nuevo, ${userData.name || userData.email}!`, 'success');
+    handleShowToast(`¡Bienvenido de nuevo, ${userData.nombre || userData.email}!`, 'success');
   };
 
   // 🔒 VALIDACIÓN RIGUROSA DE PERFIL: Si no hay usuario, abre Login obligatoriamente
@@ -193,7 +193,7 @@ return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#f4f7f9' }}>
       
       {/* Barra superior si es vendedor */}
-      {user?.role === 'seller' && (
+      {user?.rol === 'vendedor' && (
         <Box 
           sx={{ 
             backgroundColor: '#0f172a', 

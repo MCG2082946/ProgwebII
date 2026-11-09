@@ -1,125 +1,58 @@
-const express = require('express');
-const router = express.Router();
+﻿const router = require('express').Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User'); // Ajusta la ruta si tu modelo se llama o está en otro lugar
+const User = require('../models/User');
+const { authenticate, authorize } = require('../middleware/auth');
+const { bodyObject, text, objectId } = require('../middleware/validation');
+const { httpError } = require('../middleware/errors');
 
-// ==========================================
-// RUTA: Registro de usuario
-// POST /api/auth/register (o /api/auth/registro)
-// ==========================================
-router.post('/registro', async (req, res) =>  {
-  try {
-    const { nombre, email, password, rol } = req.body;
-
-    // 1. Validar que vengan los campos obligatorios
-    if (!nombre || !email || !password) {
-      return res.status(400).json({ mensaje: 'Todos los campos marcados con * son obligatorios' });
-    }
-
-    // 2. Verificar si el correo ya está registrado
-    const existeUsuario = await User.findOne({ email });
-    if (existeUsuario) {
-      return res.status(400).json({ mensaje: 'El correo electrónico ya está registrado' });
-    }
-
-    // 3. Encriptar la contraseña
-    const salt = await bcrypt.genSalt(10);
-    const contrasena_hash = await bcrypt.hash(password, salt);
-
-    // 4. Mapear el rol enviado por el frontend ('client' -> 'cliente', 'seller' -> 'vendedor')
-    // Esto resuelve el ValidationError de Mongoose
-    let rolMongoose = 'cliente';
-    if (rol === 'seller' || rol === 'vendedor') {
-      rolMongoose = 'vendedor';
-    } else if (rol === 'client' || rol === 'cliente') {
-      rolMongoose = 'cliente';
-    }
-
-    // 5. Crear el nuevo usuario
-    const nuevoUsuario = new User({
-      nombre,
-      email,
-      contrasena_hash,
-      rol: rolMongoose
-    });
-
-    // 6. Guardar en la base de datos
-    await nuevoUsuario.save();
-
-    // 7. Generar el Token JWT
-    const token = jwt.sign(
-      { id: nuevoUsuario._id, rol: nuevoUsuario.rol },
-      process.env.JWT_SECRET || 'secreto_super_seguro',
-      { expiresIn: '8h' }
-    );
-
-    // 8. Responder al frontend
-    res.status(201).json({
-      mensaje: 'Usuario registrado exitosamente',
-      token,
-      usuario: {
-        id: nuevoUsuario._id,
-        nombre: nuevoUsuario.nombre,
-        email: nuevoUsuario.email,
-        rol: nuevoUsuario.rol
-      }
-    });
-
-  } catch (error) {
-    console.error('Error en registro:', error);
-    res.status(500).json({ 
-      mensaje: 'Error al registrar usuario', 
-      error: error.message 
-    });
+const publicUser = (user) => ({ id: user._id, nombre: user.nombre, email: user.email, rol: user.rol });
+function session(user) {
+  if (!process.env.JWT_SECRET?.trim()) throw new Error('Configuración JWT incompleta.');
+  return {
+    token: jwt.sign({ id: user._id.toString(), rol: user.rol }, process.env.JWT_SECRET,
+      { algorithm: 'HS256', expiresIn: '8h' }),
+    usuario: publicUser(user)
+  };
+}
+function credentials(req, res, next) {
+  const { email, password } = req.body;
+  if (!text(email, 254) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ||
+      typeof password !== 'string' || !password.length || Buffer.byteLength(password, 'utf8') > 72) {
+    return next(httpError(400, 'Correo o contraseña inválidos. La contraseña admite hasta 72 bytes.'));
   }
-});
+  req.body.email = email.trim();
+  return next();
+}
 
-// ==========================================
-// RUTA: Inicio de sesión
-// POST /api/auth/login
-// ==========================================
-router.post('/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    // 1. Verificar si el usuario existe
-    const usuario = await User.findOne({ email });
-    if (!usuario) {
-      return res.status(400).json({ mensaje: 'Credenciales inválidas' });
-    }
-
-    // 2. Validar la contraseña
-    const esPasswordCorrecto = await bcrypt.compare(password, usuario.contrasena_hash);
-    if (!esPasswordCorrecto) {
-      return res.status(400).json({ mensaje: 'Credenciales inválidas' });
-    }
-
-    // 3. Generar JWT
-    const token = jwt.sign(
-      { id: usuario._id, rol: usuario.rol },
-      process.env.JWT_SECRET || 'secreto_super_seguro',
-      { expiresIn: '8h' }
-    );
-
-    res.json({
-      mensaje: 'Inicio de sesión exitoso',
-      token,
-      usuario: {
-        id: usuario._id,
-        nombre: usuario.nombre,
-        email: usuario.email,
-        rol: usuario.rol
-      }
-    });
-
-  } catch (error) {
-    console.error('Error en login:', error);
-    res.status(500).json({ 
-      mensaje: 'Error al iniciar sesión', 
-      error: error.message 
-    });
+router.post('/registro', bodyObject, credentials, async (req, res) => {
+  const { nombre, email, password, rol, role } = req.body;
+  if ((rol !== undefined && rol !== 'cliente') || (role !== undefined && role !== 'client')) {
+    throw httpError(403, 'El registro público solo permite cuentas de cliente.');
   }
+  if (!text(nombre) || password.length < 8) {
+    throw httpError(400, 'Indica un nombre válido y una contraseña de al menos 8 caracteres.');
+  }
+  if (!process.env.JWT_SECRET?.trim()) throw new Error('Configuración JWT incompleta.');
+  if (await User.exists({ email })) throw httpError(409, 'El correo electrónico ya está registrado.');
+  const user = await User.create({ nombre: nombre.trim(), email,
+    contrasena_hash: await bcrypt.hash(password, 10), rol: 'cliente' });
+  res.status(201).json({ mensaje: 'Usuario registrado exitosamente.', ...session(user) });
 });
+router.post('/login', bodyObject, credentials, async (req, res) => {
+  const user = await User.findOne({ email: req.body.email });
+  if (!user || !await bcrypt.compare(req.body.password, user.contrasena_hash)) {
+    throw httpError(401, 'Credenciales inválidas.');
+  }
+  res.json({ mensaje: 'Inicio de sesión exitoso.', ...session(user) });
+});
+router.get('/me', authenticate, (req, res) => res.json({ usuario: publicUser(req.user) }));
 
+router.patch('/usuarios/:id/vendedor', authenticate, authorize('administrador'), async (req, res) => {
+  if (!objectId(req.params.id)) throw httpError(400, 'Identificador inválido.');
+  const user = await User.findOneAndUpdate(
+    { _id: req.params.id, rol: 'cliente' }, { $set: { rol: 'vendedor' } }, { new: true, runValidators: true });
+  if (!user) throw httpError(409, 'No existe una cuenta de cliente habilitable con ese identificador.');
+  res.json({ mensaje: 'Cuenta de vendedor habilitada.', usuario: publicUser(user) });
+});
 module.exports = router;
