@@ -31,7 +31,8 @@ import {
   Search as SearchIcon,
   ArrowBack as ArrowBackIcon,
   Storefront as StorefrontIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  Logout as LogoutIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
@@ -54,7 +55,7 @@ const initialInventory = [
   }
 ];
 
-export default function SellerPanel({ user }) {
+export default function SellerPanel({ user, onLogout }) {
   const navigate = useNavigate();
   const [books, setBooks] = useState(initialInventory);
   const [searchTerm, setSearchTerm] = useState('');
@@ -118,6 +119,15 @@ export default function SellerPanel({ user }) {
   return (
     <Box sx={{ backgroundColor: '#f4f7f9', minHeight: '100vh', py: 5 }}>
       <Container maxWidth="lg">
+        {user && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2, mb: 2 }}>
+            <Typography variant="body2" color="text.secondary">{user.nombre || user.email}</Typography>
+            <Button onClick={onLogout} startIcon={<LogoutIcon />} color="error"
+              variant="outlined" sx={{ textTransform: 'none', borderRadius: 2 }}>
+              Cerrar sesión
+            </Button>
+          </Box>
+        )}
         
         {/* ENCABEZADO Y CONTROLES */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, flexWrap: 'wrap', gap: 2 }}>

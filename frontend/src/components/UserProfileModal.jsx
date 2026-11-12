@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogActions,
   Box,
   Typography,
   TextField,
@@ -23,6 +24,7 @@ import {
 } from '@mui/material';
 import {
   Close as CloseIcon,
+  Logout as LogoutIcon,
   Visibility,
   VisibilityOff,
   Star as StarIcon,
@@ -33,7 +35,7 @@ import {
   Bookmark as BookmarkIcon
 } from '@mui/icons-material';
 
-export default function UserProfileModal({ open, onClose, user, onUpdateUser, wishlist = [], purchasedBooks = [] }) {
+export default function UserProfileModal({ open, onClose, user, onUpdateUser, onLogout, wishlist = [], purchasedBooks = [] }) {
   const [tabIndex, setTabIndex] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -343,6 +345,14 @@ export default function UserProfileModal({ open, onClose, user, onUpdateUser, wi
         )}
 
       </DialogContent>
+      {user && (
+        <DialogActions sx={{ px: 3, py: 2, borderTop: 1, borderColor: 'divider' }}>
+          <Button onClick={onLogout} startIcon={<LogoutIcon />} color="error"
+            variant="outlined" sx={{ textTransform: 'none', borderRadius: 2 }}>
+            Cerrar sesión
+          </Button>
+        </DialogActions>
+      )}
     </Dialog>
   );
 }

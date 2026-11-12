@@ -82,12 +82,12 @@ export default function Navbar({
           </IconButton>
           
           {/* Icono de Usuario autenticado / inicio de sesión */}
-          <IconButton color="inherit" onClick={handleUserIconClick}>
+          <IconButton color="inherit" onClick={handleUserIconClick} aria-label={user ? 'Mi cuenta' : 'Iniciar sesión'}>
             <AccountIcon fontSize="large" />
           </IconButton>
           
           {/* Botón del carrito */}
-          <IconButton color="inherit" onClick={onOpenCart}>
+          <IconButton color="inherit" onClick={onOpenCart} aria-label="Carrito">
             <Badge badgeContent={cartCount} color="error">
               <ShoppingCartIcon fontSize="large" />
             </Badge>
