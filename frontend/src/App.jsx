@@ -2,14 +2,16 @@
 
 import React, { useEffect, useState } from 'react';
 import { API_URL } from './api';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import Inicio from './Inicio';
 import DashboardVendedor from './DashboardVendedor';
 import NotExist from './NotExists';
 
 function App() {
+  const navigate = useNavigate();
 
   const [user, setUser] = useState(null); 
+  const [sessionVersion, setSessionVersion] = useState(0);
   const [loadingSession, setLoadingSession] = useState(() => Boolean(localStorage.getItem('token')));
   useEffect(() => {
     const controller = new AbortController();
@@ -38,13 +40,21 @@ function App() {
     void restoreSession();
     return () => controller.abort();
   }, []);
+  const handleLogout = () => {
+    // El token es el único dato de sesión persistido por la aplicación.
+    localStorage.removeItem('token');
+    setUser(null);
+    // Desmontar la tienda elimina carrito, compras y formularios de la sesión anterior.
+    setSessionVersion((version) => version + 1);
+    navigate('/', { replace: true });
+  };
   if (loadingSession) return null;
   return (
     <Routes>
       {/* Ruta Tienda / Cliente */}
       <Route 
         path="/" 
-        element={<Inicio user={user} setUser={setUser} />} 
+        element={<Inicio key={sessionVersion} user={user} setUser={setUser} onLogout={handleLogout} />}
       />
 
       {/* Ruta Vendedor (Protegida) */}
@@ -52,7 +62,7 @@ function App() {
         path="/vendedor" 
         element={
           user?.rol === 'vendedor' ? (
-            <DashboardVendedor user={user} setUser={setUser} />
+            <DashboardVendedor user={user} onLogout={handleLogout} />
           ) : (
             <Navigate to="/" replace />
           )

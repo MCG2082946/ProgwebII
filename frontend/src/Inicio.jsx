@@ -66,7 +66,7 @@ const initialBooksData = [
   }
 ];
 
-export default function Inicio({ user, setUser }) {
+export default function Inicio({ user, setUser, onLogout }) {
   const navigate = useNavigate();
 
   // Catálogo de libros
@@ -374,9 +374,10 @@ return (
       />
 
       <UserProfileModal
-        open={openProfileModal}
+        open={Boolean(user) && openProfileModal}
         onClose={() => setOpenProfileModal(false)}
         user={user}
+        onLogout={onLogout}
         onUpdateUser={(updatedData) => setUser((prev) => ({ ...prev, ...updatedData }))}
         wishlist={books.slice(0, 3)}
         purchasedBooks={purchasedBooks}
