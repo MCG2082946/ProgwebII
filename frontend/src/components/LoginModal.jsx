@@ -1,6 +1,7 @@
 // Modal de Inicio de Sesion y Registro de Usuario
 
 import React, { useState } from 'react';
+import { API_URL } from '../api';
 import {
   Dialog,
   DialogContent,
@@ -13,11 +14,6 @@ import {
   Tab,
   Tabs,
   InputAdornment,
-  RadioGroup,
-  FormControlLabel,
-  Radio,
-  FormControl,
-  FormLabel,
   Alert
 } from '@mui/material';
 import {
@@ -25,8 +21,7 @@ import {
   Google as GoogleIcon,
   Facebook as FacebookIcon,
   Visibility,
-  VisibilityOff,
-  Key as KeyIcon
+  VisibilityOff
 } from '@mui/icons-material';
 
 export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) {
@@ -37,8 +32,6 @@ export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState('client');
-  const [sellerKey, setSellerKey] = useState(''); 
   const [errorMessage, setErrorMessage] = useState(''); 
 
   const handleTabChange = (event, newValue) => {
@@ -46,11 +39,6 @@ export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) 
     setErrorMessage('');
   };
 
-  const handleRoleChange = (e) => {
-    setRole(e.target.value);
-    setErrorMessage('');
-    setSellerKey('');
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -58,20 +46,15 @@ export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) 
 
     if (!email || !password) return;
 
-    // Validación de la clave especial de vendedor
-    if (role === 'seller' && sellerKey !== '1234') {
-      setErrorMessage('La clave de vendedor es incorrecta.');
-      return;
-    }
 
     // Determinar endpoint según la pestaña (0: Login, 1: Registro)
     const isRegistering = tabIndex === 1;
     const endpoint = isRegistering 
-      ? 'http://localhost:5000/api/auth/registro' 
-      : 'http://localhost:5000/api/auth/login';
+      ? API_URL + '/auth/registro'
+      : API_URL + '/auth/login';
 
     const payload = isRegistering 
-      ? { nombre: name, email, password, rol: role }
+      ? { nombre: name, email, password }
       : { email, password };
 
     try {
@@ -90,16 +73,16 @@ export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) 
         }
         
         // Pasa los datos del usuario retornado al componente padre
-        onLoginSuccess(data.usuario || { email, name, role });
+        onLoginSuccess(data.usuario);
         onClose();
       } else {
         // Muestra el mensaje específico o el detalle del error devuelto por el backend
-        const msgError = data.mensaje || data.error || 'Ocurrió un error al procesar la solicitud.';
+        const msgError = data.mensaje || 'Ocurrió un error al procesar la solicitud.';
         setErrorMessage(msgError);
       }
     } catch (error) {
       console.error('Error de conexión:', error);
-      setErrorMessage('No se pudo conectar con el servidor Back-End (puerto 5000).');
+      setErrorMessage('No se pudo conectar con el servidor. Intenta nuevamente.');
     }
   };
 
@@ -212,49 +195,10 @@ export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) 
             }}
           />
 
-          {/* Selector de Tipo de Cuenta */}
-          <FormControl component="fieldset" sx={{ mt: 0.5 }}>
-            <FormLabel component="legend" sx={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>
-              Tipo de cuenta:
-            </FormLabel>
-            <RadioGroup
-              row
-              value={role}
-              onChange={handleRoleChange}
-            >
-              <FormControlLabel 
-                value="client" 
-                control={<Radio size="small" sx={{ color: '#2b4c6f', '&.Mui-checked': { color: '#2b4c6f' } }} />} 
-                label={<Typography variant="body2" sx={{ fontSize: '0.85rem' }}>Cliente</Typography>} 
-              />
-              <FormControlLabel 
-                value="seller" 
-                control={<Radio size="small" sx={{ color: '#2b4c6f', '&.Mui-checked': { color: '#2b4c6f' } }} />} 
-                label={<Typography variant="body2" sx={{ fontSize: '0.85rem' }}>Vendedor</Typography>} 
-              />
-            </RadioGroup>
-          </FormControl>
-
-          {/* Campo condicional: Clave especial de vendedor */}
-          {role === 'seller' && (
-            <TextField
-              label="Clave de Vendedor"
-              type="password"
-              fullWidth
-              size="small"
-              value={sellerKey}
-              onChange={(e) => setSellerKey(e.target.value)}
-              placeholder="Ingresa la clave (ej. 1234)"
-              required
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <KeyIcon fontSize="small" sx={{ color: '#64748b' }} />
-                  </InputAdornment>
-                )
-              }}
-              sx={{ backgroundColor: '#f8fafc', borderRadius: 1 }}
-            />
+          {tabIndex === 1 && (
+            <Typography variant="caption" color="text.secondary">
+              La cuenta se crea como cliente. Un administrador debe habilitar el acceso de vendedor.
+            </Typography>
           )}
 
           <Button

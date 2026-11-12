@@ -65,7 +65,7 @@ export default function SellerPanel({ user }) {
   const [formData, setFormData] = useState({
     title: '',
     author: '',
-    seller: user?.name || 'Mi Tienda',
+    seller: user?.nombre || 'Mi Tienda',
     price: '',
     cover: ''
   });
@@ -75,7 +75,7 @@ export default function SellerPanel({ user }) {
     setFormData({
       title: '',
       author: '',
-      seller: user?.name || 'Mi Tienda',
+      seller: user?.nombre || 'Mi Tienda',
       price: '',
       cover: ''
     });

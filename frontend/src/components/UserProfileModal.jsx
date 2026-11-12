@@ -48,10 +48,10 @@ export default function UserProfileModal({ open, onClose, user, onUpdateUser, wi
   useEffect(() => {
     if (user) {
       setFormData({
-        firstName: user.firstName || user.name || '',
+        firstName: user.firstName || user.nombre || '',
         lastName: user.lastName || '',
         email: user.email || '',
-        password: user.password || '••••••••'
+        password: ''
       });
     }
   }, [user]);
@@ -61,7 +61,7 @@ export default function UserProfileModal({ open, onClose, user, onUpdateUser, wi
   };
 
   const handleSave = () => {
-    if (onUpdateUser) onUpdateUser(formData);
+    if (onUpdateUser) onUpdateUser({ nombre: [formData.firstName.trim(), formData.lastName.trim()].filter(Boolean).join(' '), email: formData.email });
     setIsEditing(false);
   };
 
