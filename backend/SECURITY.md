@@ -73,8 +73,10 @@ Para el frontend ejecutar `npm run lint` y `npm run build` desde `frontend/`.
 
 ## Alcance pendiente
 
-El catálogo/carrito/panel mantienen su funcionamiento local previo; esta fase
-no conecta ese CRUD visual a MongoDB. El perfil visual no actualiza la base ni
+El catálogo y el inventario del vendedor consultan la API. El inventario usa
+`GET /api/books/mine`, autenticado y filtrado por propietario. Las escrituras
+reutilizan POST, PATCH y DELETE de libros. El carrito sigue siendo local.
+El perfil visual no actualiza la base ni
 cambia contraseñas. Quedan pendientes límites de intentos de login y despliegue
 con HTTPS, política CORS específica y revisión del almacenamiento del token.
 

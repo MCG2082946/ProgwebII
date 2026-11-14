@@ -8,6 +8,9 @@ const { httpError } = require('../middleware/errors');
 router.get('/', async (req, res) => {
   res.json(await Book.find().populate('categoria', 'nombre descripcion'));
 });
+router.get('/mine', authenticate, authorize('vendedor', 'administrador'), async (req, res) => {
+  res.json(await Book.find({ id_vendedor: req.user._id }).populate('categoria', 'nombre descripcion'));
+});
 // Toda escritura, incluidas futuras rutas, requiere un rol autorizado.
 router.use((req, res, next) => {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
