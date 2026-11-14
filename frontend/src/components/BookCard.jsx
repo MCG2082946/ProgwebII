@@ -63,7 +63,7 @@ export default function BookCard({ book, isSeller, onSelect, onEdit, onAddToCart
 
       <CardContent sx={{ p: 0, width: '100%', textAlign: 'left', flexGrow: 1 }}>
         <Typography variant="caption" color="text.secondary" display="block">
-          {book.type || 'Tapa blanda'}
+          {book.binding}
         </Typography>
         <Typography
           variant="subtitle2"

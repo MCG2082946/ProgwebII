@@ -183,6 +183,33 @@ test('seller update and delete use an atomic owner filter', async () => {
   assert.equal((await request('/api/books/' + bookId, 'PATCH', { precio: 20 }, token())).status, 404);
   assert.equal((await request('/api/books/' + bookId, 'DELETE', undefined, token())).status, 404);
 });
+
+test('own inventory requires seller authentication and queries only its owner', async () => {
+  assert.equal((await request('/api/books/mine')).status, 401);
+  assert.equal((await request('/api/books/mine', 'GET', undefined, token())).status, 403);
+  role = 'vendedor';
+  Book.find.mock.mockImplementation((filter) => {
+    assert.deepEqual(filter, { id_vendedor: userId });
+    return { populate: async () => [{ _id: bookId, id_vendedor: userId }] };
+  });
+  const response = await request('/api/books/mine', 'GET', undefined, token());
+  assert.equal(response.status, 200);
+  assert.equal((await response.json())[0]._id, bookId);
+});
+
+test('category CRUD preserves creation and admin management permissions', async () => {
+  role = 'vendedor';
+  Category.create.mock.mockImplementation(async (data) => ({ _id: categoryId, ...data }));
+  assert.equal((await request('/api/categories', 'POST', { nombre: 'Novela' }, token())).status, 201);
+  role = 'administrador';
+  Category.findByIdAndUpdate.mock.mockImplementation(async (id, update) => ({ _id: id, ...update.$set }));
+  const response = await request('/api/categories/' + categoryId, 'PATCH', { nombre: 'Historia' }, token());
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).categoria.nombre, 'Historia');
+  Book.exists.mock.mockImplementation(async () => false);
+  Category.findByIdAndDelete.mock.mockImplementation(async () => ({ _id: categoryId }));
+  assert.equal((await request('/api/categories/' + categoryId, 'DELETE', undefined, token())).status, 204);
+});
 test('seller cannot edit/delete shared categories; used category returns 409', async () => {
   role = 'vendedor';
   for (const method of ['PATCH', 'PUT', 'DELETE']) {

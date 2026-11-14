@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Container, Snackbar, Alert, Button, Typography, TextField, MenuItem, InputAdornment, Paper } from '@mui/material';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
@@ -8,6 +8,7 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 
 // Componentes
 import Navbar from './components/Navbar';
+import { loadCatalog } from './api';
 import BookSlider from './components/BookSlider';
 import BookDetailModal from './components/BookDetailModal';
 import CartDrawer from './components/CartDrawer';
@@ -18,59 +19,26 @@ import Footer from './components/Footer';
 // Logotipo de la librería
 import logoImg from './assets/logo.png';
 
-const initialBooksData = [
-  {
-    id: 1,
-    title: 'ALAS DE ESTRELLA',
-    author: 'ALLISON SAFT',
-    binding: 'Tapa blanda',
-    price: 18.90,
-    cover: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400',
-    synopsis: 'Una fascinante historia de magia, secretos y romance que te atrapará desde la primera página.'
-  },
-  {
-    id: 2,
-    title: 'EL PERFUME DEL REY (SAGA REY 1)',
-    author: 'Karine Bernal Lobo',
-    binding: 'Tapa dura',
-    price: 22.50,
-    cover: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=400',
-    synopsis: 'Misterios reales y pasiones ocultas se entrecruzan en una corte llena de intriga y peligro.'
-  },
-  {
-    id: 3,
-    title: 'EL ÚLTIMO SECRETO',
-    author: 'DAN BROWN',
-    binding: 'Tapa blanda',
-    price: 19.99,
-    cover: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=400',
-    synopsis: 'Un enigma milenario amenaza con salir a la luz en esta trepidante aventura llena de giros inesperados.'
-  },
-  {
-    id: 4,
-    title: 'ALAS DE ÓNIX (EMPÍREO 3)',
-    author: 'REBECCA YARROS',
-    binding: 'Edición especial',
-    price: 25.00,
-    cover: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&q=80&w=400',
-    synopsis: 'La esperada continuación de la saga fantástica que ha conquistado a millones de lectores en todo el mundo.'
-  },
-  {
-    id: 5,
-    title: 'El arte de ser nosotros',
-    author: 'Inma Rubiales',
-    binding: 'Tapa dura',
-    price: 17.50,
-    cover: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&q=80&w=400',
-    synopsis: 'Una conmovedora novela sobre el crecimiento personal, las segundas oportunidades y el amor verdadero.'
-  }
-];
-
 export default function Inicio({ user, setUser, onLogout }) {
   const navigate = useNavigate();
 
   // Catálogo de libros
-  const [books] = useState(initialBooksData);
+  const [books, setBooks] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [reload, setReload] = useState(0);
+  const [categoryFilter, setCategoryFilter] = useState('');
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true); setError('');
+    loadCatalog({ signal: controller.signal }).then((data) => {
+      if (!controller.signal.aborted) { setBooks(data.books); setCategories(data.categories); }
+    }).catch((error) => {
+      if (!controller.signal.aborted) { setBooks([]); setError(error.message); }
+    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [reload]);
   const [purchasedBooks, setPurchasedBooks] = useState([]);
 
   // Búsqueda y filtros del catálogo
@@ -91,12 +59,12 @@ export default function Inicio({ user, setUser, onLogout }) {
     if (priceFilter === '$20 - $24.99') matchesPrice = book.price >= 20 && book.price < 25;
     if (priceFilter === '$25 o más') matchesPrice = book.price >= 25;
 
-    return matchesSearch && matchesBinding && matchesPrice;
+    return matchesSearch && matchesBinding && matchesPrice && (!categoryFilter || book.categoryId === categoryFilter);
   });
 
   const clearFilters = () => {
     setSearchTerm('');
-    setBindingFilter('Todas');
+    setBindingFilter('Todas'); setCategoryFilter('');
     setPriceFilter('Todos');
   };
 
@@ -255,7 +223,7 @@ return (
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', md: '2fr 1fr 1fr auto' },
+              gridTemplateColumns: { xs: '1fr', md: '2fr 1fr 1fr 1fr auto' },
               gap: 2,
               alignItems: 'center'
             }}
@@ -304,9 +272,11 @@ return (
               <MenuItem value="$25 o más">$25 o más</MenuItem>
             </TextField>
 
-            <Button
-              variant="outlined"
-              startIcon={<RestartAltIcon />}
+            <TextField select fullWidth size="small" label="Categoría" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+              <MenuItem value="">Todas</MenuItem>
+              {categories.map((c) => <MenuItem key={c._id} value={c._id}>{c.nombre}</MenuItem>)}
+            </TextField>
+            <Button variant="outlined" startIcon={<RestartAltIcon />}
               onClick={clearFilters}
               sx={{ minHeight: 40, whiteSpace: 'nowrap', textTransform: 'none', borderColor: '#1e3a5f', color: '#1e3a5f' }}
             >
@@ -319,7 +289,9 @@ return (
           </Typography>
         </Paper>
 
-        {filteredBooks.length > 0 ? (
+        {loading ? <Typography role="status">Cargando catálogo...</Typography> : error ? (
+          <Alert severity="error" action={<Button onClick={() => setReload((n) => n + 1)}>Reintentar</Button>}>{error}</Alert>
+        ) : filteredBooks.length > 0 ? (
           <>
         <BookSlider
           title="Libros en Tendencia"
