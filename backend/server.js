@@ -1,4 +1,4 @@
-﻿require('dotenv').config({ quiet: true });
+﻿require('dotenv').config({ path: './.env' });
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -32,8 +32,8 @@ async function start() {
       process.exitCode = 1;
       void mongoose.disconnect();
     });
-  } catch {
-    console.error('No se pudo conectar con la base de datos. Revisa la configuración local.');
+  } catch (error) {
+    console.error('Error real de conexión:', error.message); // <-- Esto nos dirá la verdad exacta
     process.exitCode = 1;
   }
 }
