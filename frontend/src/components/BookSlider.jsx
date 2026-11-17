@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight } from '@mui/icons-material';
 import BookCard from './BookCard';
 import AddBookCard from './AddBookCard';
 
-export default function BookSlider({ title, books, isSeller, onSelect, onEdit, onAddToCart, onAdd }) {
+export default function BookSlider({ title, books, isSeller, onSelect, onEdit, onAddToCart, onAdd, favorites, onFavorite }) {
   const sliderRef = useRef(null);
 
   const handleScroll = (direction) => {
@@ -67,6 +67,9 @@ export default function BookSlider({ title, books, isSeller, onSelect, onEdit, o
                 onSelect={onSelect}
                 onEdit={onEdit}
                 onAddToCart={onAddToCart}
+                favorite={favorites?.has(book.id) || false}
+                favoritesDisabled={Boolean(favorites?.loading || favorites?.busy || favorites?.error)}
+                onFavorite={onFavorite}
               />
             </Box>
           ))}

@@ -41,7 +41,8 @@ const profileDraft = (user) => ({
   email: user?.email || '',
 });
 
-export default function UserProfileModal({ open, onClose, user, onUpdateUser, onLogout, onGoToSellerPanel, wishlist = [] }) {
+export default function UserProfileModal({ open, onClose, user, onUpdateUser, onLogout, onGoToSellerPanel, wishlist = [],
+  favoritesLoading = false, favoritesBusy = false, favoritesError = '', onRetryFavorites, onRemoveFavorite }) {
   const [tabIndex, setTabIndex] = useState(0);
   const [orders, setOrders] = useState([]);
   const [historyError, setHistoryError] = useState('');
@@ -249,7 +250,10 @@ export default function UserProfileModal({ open, onClose, user, onUpdateUser, on
               Lista de Deseos ({wishlist.length})
             </Typography>
             
-            {wishlist.length === 0 ? (
+            {favoritesLoading && <Typography role="status">Cargando favoritos...</Typography>}
+            {favoritesBusy && <Typography role="status">Guardando favoritos...</Typography>}
+            {favoritesError && <Alert severity="error" action={<Button disabled={favoritesLoading || favoritesBusy} onClick={onRetryFavorites}>Reintentar favoritos</Button>}>{favoritesError}</Alert>}
+            {!favoritesLoading && !favoritesError && wishlist.length === 0 ? (
               <Typography variant="body2" sx={{ color: '#94a3b8', mb: 3 }}>No tienes productos en tu lista de deseos.</Typography>
             ) : (
               <Grid container spacing={2} sx={{ mb: 4 }}>
@@ -296,6 +300,10 @@ export default function UserProfileModal({ open, onClose, user, onUpdateUser, on
                           {book.author}
                         </Typography>
                       </CardContent>
+                      {onRemoveFavorite && <Button disabled={favoritesLoading || favoritesBusy || !!favoritesError}
+                        aria-label={'Quitar de favoritos ' + book.title} onClick={() => onRemoveFavorite(book.id)}>
+                        Quitar de la lista
+                      </Button>}
                     </Card>
                   </Grid>
                 ))}

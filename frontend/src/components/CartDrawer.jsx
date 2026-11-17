@@ -18,13 +18,14 @@ import {
 import {
   Close as CloseIcon,
   FavoriteBorder as FavoriteIcon,
+  Favorite as SavedFavoriteIcon,
   DeleteOutlineOutlined as DeleteIcon, 
   Add as AddIcon,
   Remove as RemoveIcon
 } from '@mui/icons-material';
 
 export default function CartDrawer({ open, onClose, cartItems, onUpdateQuantity, onRemoveItem,
-  totalPrice, loading = false, busy = false, error = '', onRetry, authenticated = false, onCheckout }) {
+  totalPrice, loading = false, busy = false, error = '', onRetry, authenticated = false, onCheckout, favorites, onFavorite }) {
   const [summary, setSummary] = useState(false);
   const [sending, setSending] = useState(false);
   const [purchaseError, setPurchaseError] = useState('');
@@ -71,6 +72,7 @@ export default function CartDrawer({ open, onClose, cartItems, onUpdateQuantity,
           {loading && <Typography role="status">Cargando carrito...</Typography>}
           {busy && <Typography role="status">Guardando carrito...</Typography>}
           {error && <Alert severity="error" action={<Button disabled={loading || busy} onClick={onRetry}>Reintentar</Button>}>{error}</Alert>}
+          {favorites?.error && <Alert severity="error" action={<Button disabled={favorites.loading || favorites.busy} onClick={favorites.reload}>Reintentar favoritos</Button>}>{favorites.error}</Alert>}
           {!loading && !error && cartItems.length === 0 ? (
             <Typography sx={{ textAlign: 'center', color: '#64748b', mt: 4 }}>
               Tu carrito está vacío.
@@ -100,8 +102,11 @@ export default function CartDrawer({ open, onClose, cartItems, onUpdateQuantity,
 
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1 }}>
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
-                      <IconButton size="small" sx={{ color: '#64748b' }}>
-                        <FavoriteIcon fontSize="small" />
+                      <IconButton aria-label={(favorites?.has(item.id) ? 'Quitar de favoritos ' : 'Guardar en favoritos ') + item.title}
+                        aria-pressed={favorites?.has(item.id) || false}
+                        disabled={!onFavorite || favorites?.loading || favorites?.busy || !!favorites?.error}
+                        onClick={() => onFavorite(item)} size="small" sx={{ color: favorites?.has(item.id) ? '#1e3a5f' : '#64748b' }}>
+                        {favorites?.has(item.id) ? <SavedFavoriteIcon fontSize="small" /> : <FavoriteIcon fontSize="small" />}
                       </IconButton>
                       <IconButton aria-label={'Eliminar ' + item.title} disabled={busy || loading || !!error} size="small" onClick={() => onRemoveItem(item.id)} sx={{ color: '#64748b' }}>
                         <DeleteIcon fontSize="small" />
