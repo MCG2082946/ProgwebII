@@ -40,7 +40,6 @@ export default function Inicio({ user, setUser, onLogout }) {
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [reload]);
-  const [purchasedBooks] = useState([]);
 
   // Búsqueda y filtros del catálogo
   const [searchTerm, setSearchTerm] = useState('');
@@ -302,6 +301,7 @@ return (
 
       {/* Componentes modulares (Modales, Drawer y Toast) */}
       <CartDrawer
+        key={user?.id || user?._id || user?.email || 'guest'}
         open={openCart}
         onClose={() => setOpenCart(false)}
         cartItems={cartItems}
@@ -313,6 +313,7 @@ return (
         error={cart.error}
         onRetry={cart.reload}
         authenticated={Boolean(user)}
+        onCheckout={cart.checkout}
       />
 
       <LoginModal
@@ -330,7 +331,6 @@ return (
         onUpdateUser={setUser}
         onGoToSellerPanel={() => navigate('/vendedor')}
         wishlist={books.slice(0, 3)}
-        purchasedBooks={purchasedBooks}
       />
 
       <BookDetailModal

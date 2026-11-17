@@ -44,7 +44,41 @@ export default function useCart(user) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [identity]);
   const current = state.identity === identity ? state : { items: [], total: 0, loading: Boolean(identity), busy: false, error: '' };
-  return { ...current,
+  async function checkout(key) {
+    const session = scope.current;
+    if (!session?.active || session.pending) return;
+    session.pending = true;
+    setState((current) => ({ ...current, busy: true }));
+    try {
+      const storageKey = 'checkout:' + session.identity;
+      key = sessionStorage.getItem(storageKey) || key;
+      sessionStorage.setItem(storageKey, key);
+      const order = await apiRequest('/orders', { method: 'POST', auth: true, body: { clave_compra: key } });
+      if (!session.active || scope.current !== session) return;
+      sessionStorage.removeItem(storageKey);
+      try {
+        const data = cartView(await apiRequest('/cart', { auth: true }));
+        if (!session.active || scope.current !== session) return;
+        session.needsReload = false;
+        setState({ identity: session.identity, ...data, loading: false, busy: false, error: '' });
+      } catch {
+        if (!session.active || scope.current !== session) return;
+        session.needsReload = true;
+        setState((current) => ({ ...current, error: 'Compra confirmada. Recarga el carrito para actualizarlo.' }));
+      }
+      return order;
+    } catch (error) {
+      if (session.active && scope.current === session) {
+        session.needsReload = true;
+        setState((current) => ({ ...current, error: error.message }));
+      }
+      throw error;
+    } finally {
+      session.pending = false;
+      if (session.active && scope.current === session) setState((current) => ({ ...current, busy: false }));
+    }
+  }
+  return { ...current, checkout,
     reload: () => identity && request(scope.current),
     add: (id) => request(scope.current, '/cart/items', { method: 'POST', body: { id_libro: id, cantidad: 1 } }),
     change: (id, cantidad) => request(scope.current, '/cart/items/' + id, { method: 'PATCH', body: { cantidad } }),
