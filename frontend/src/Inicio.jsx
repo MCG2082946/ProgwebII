@@ -10,6 +10,7 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import Navbar from './components/Navbar';
 import { loadCatalog } from './api';
 import useCart from './useCart';
+import useFavorites from './useFavorites';
 import BookSlider from './components/BookSlider';
 import BookDetailModal from './components/BookDetailModal';
 import CartDrawer from './components/CartDrawer';
@@ -71,6 +72,7 @@ export default function Inicio({ user, setUser, onLogout }) {
   // Estados del Carrito
   const [openCart, setOpenCart] = useState(false);
   const cart = useCart(user);
+  const favorites = useFavorites(user);
   const cartItems = cart.items;
 
   // Visibilidad de Modales
@@ -124,6 +126,15 @@ export default function Inicio({ user, setUser, onLogout }) {
   };
   const handleUpdateQuantity = (id, newQty) => { void cart.change(id, newQty); };
   const handleRemoveItem = (id) => { void cart.remove(id); };
+  const handleFavorite = (book) => {
+    if (!user) {
+      handleShowToast('Inicia sesión para guardar favoritos.', 'info');
+      setOpenLoginModal(true);
+      return;
+    }
+    if (favorites.has(book.id)) void favorites.remove(book.id);
+    else void favorites.save(book.id);
+  };
 
   const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -260,6 +271,9 @@ return (
           </Typography>
         </Paper>
 
+        {favorites.loading && <Typography role="status">Cargando favoritos...</Typography>}
+        {favorites.busy && <Typography role="status">Guardando favoritos...</Typography>}
+        {favorites.error && <Alert severity="error" action={<Button disabled={favorites.loading || favorites.busy} onClick={favorites.reload}>Reintentar favoritos</Button>}>{favorites.error}</Alert>}
         {loading ? <Typography role="status">Cargando catálogo...</Typography> : error ? (
           <Alert severity="error" action={<Button onClick={() => setReload((n) => n + 1)}>Reintentar</Button>}>{error}</Alert>
         ) : filteredBooks.length > 0 ? (
@@ -269,6 +283,8 @@ return (
           books={filteredBooks}
           isSeller={false}
           onSelect={(book) => { setSelectedBook(book); setOpenDetailModal(true); }}
+          favorites={favorites}
+          onFavorite={handleFavorite}
           onAddToCart={handleAddToCart}
         />
 
@@ -277,6 +293,8 @@ return (
           books={[...filteredBooks].reverse()}
           isSeller={false}
           onSelect={(book) => { setSelectedBook(book); setOpenDetailModal(true); }}
+          favorites={favorites}
+          onFavorite={handleFavorite}
           onAddToCart={handleAddToCart}
         />
           </>
@@ -314,6 +332,8 @@ return (
         onRetry={cart.reload}
         authenticated={Boolean(user)}
         onCheckout={cart.checkout}
+        favorites={favorites}
+        onFavorite={handleFavorite}
       />
 
       <LoginModal
@@ -330,7 +350,12 @@ return (
         onLogout={onLogout}
         onUpdateUser={setUser}
         onGoToSellerPanel={() => navigate('/vendedor')}
-        wishlist={books.slice(0, 3)}
+        wishlist={favorites.items}
+        favoritesLoading={favorites.loading}
+        favoritesBusy={favorites.busy}
+        favoritesError={favorites.error}
+        onRetryFavorites={favorites.reload}
+        onRemoveFavorite={favorites.remove}
       />
 
       <BookDetailModal
@@ -338,6 +363,11 @@ return (
         book={selectedBook}
         onClose={() => setOpenDetailModal(false)}
         onAddToCart={handleAddToCart}
+        favorite={favorites.has(selectedBook?.id)}
+        favoritesDisabled={favorites.loading || favorites.busy || !!favorites.error}
+        favoritesError={favorites.error}
+        onRetryFavorites={favorites.reload}
+        onFavorite={handleFavorite}
       />
 
       <Snackbar

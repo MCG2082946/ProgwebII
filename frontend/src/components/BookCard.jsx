@@ -2,9 +2,9 @@
 
 import React from 'react';
 import { Card, CardMedia, CardContent, Typography, Button, IconButton } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Favorite, FavoriteBorder } from '@mui/icons-material';
 
-export default function BookCard({ book, isSeller, onSelect, onEdit, onAddToCart }) {
+export default function BookCard({ book, isSeller, onSelect, onEdit, onAddToCart, favorite = false, favoritesDisabled = false, onFavorite }) {
   return (
     <Card
       elevation={1}
@@ -27,6 +27,14 @@ export default function BookCard({ book, isSeller, onSelect, onEdit, onAddToCart
       }}
     >
       {/* Icono flotante de edición */}
+      {!isSeller && onFavorite && <IconButton
+        aria-label={(favorite ? 'Quitar de favoritos ' : 'Guardar en favoritos ') + book.title}
+        aria-pressed={favorite}
+        disabled={favoritesDisabled}
+        onClick={(event) => { event.stopPropagation(); onFavorite(book); }}
+        sx={{ position: 'absolute', top: 10, right: 10, color: '#1e3a5f' }}>
+        {favorite ? <Favorite /> : <FavoriteBorder />}
+      </IconButton>}
       {isSeller && (
         <IconButton
           size="small"

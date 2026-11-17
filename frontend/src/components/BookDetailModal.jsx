@@ -2,6 +2,7 @@
 
 import React from 'react';
 import {
+  Alert,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -16,10 +17,12 @@ import {
   Info as InfoIcon,
   Close as CloseIcon,
   Star as StarIcon,
+  StarBorder as StarBorderIcon,
   ShoppingCart as ShoppingCartIcon
 } from '@mui/icons-material';
 
-export default function BookDetailModal({ open, book, onClose, onAddToCart }) {
+export default function BookDetailModal({ open, book, onClose, onAddToCart, favorite = false, favoritesDisabled = false, onFavorite,
+  favoritesError = '', onRetryFavorites }) {
   if (!book) return null;
 
   return (
@@ -48,13 +51,14 @@ export default function BookDetailModal({ open, book, onClose, onAddToCart }) {
             Informacion Libro
           </Typography>
         </Box>
-        <IconButton onClick={onClose} sx={{ color: 'white' }}>
+        <IconButton aria-label="Cerrar detalle" onClick={onClose} sx={{ color: 'white' }}>
           <CloseIcon />
         </IconButton>
       </DialogTitle>
 
       {/* Cuerpo */}
       <DialogContent sx={{ p: 4, backgroundColor: '#fcfdfd' }}>
+        {favoritesError && <Alert severity="error" action={<Button onClick={onRetryFavorites}>Reintentar favoritos</Button>}>{favoritesError}</Alert>}
         <Grid container spacing={4} alignItems="center">
           <Grid item xs={12} md={5}>
             <Paper
@@ -124,6 +128,10 @@ export default function BookDetailModal({ open, book, onClose, onAddToCart }) {
               </Button>
 
               <IconButton
+                aria-label={(favorite ? 'Quitar de favoritos ' : 'Guardar en favoritos ') + book.title}
+                aria-pressed={favorite}
+                disabled={favoritesDisabled || !onFavorite}
+                onClick={() => onFavorite(book)}
                 sx={{
                   backgroundColor: '#3b6c93',
                   color: 'white',
@@ -131,7 +139,7 @@ export default function BookDetailModal({ open, book, onClose, onAddToCart }) {
                   p: 1.2,
                 }}
               >
-                <StarIcon />
+                {favorite ? <StarIcon /> : <StarBorderIcon />}
               </IconButton>
 
               <IconButton
