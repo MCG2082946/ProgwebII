@@ -37,10 +37,12 @@ import {
   Logout as LogoutIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import UserProfileModal from './components/UserProfileModal';
 import { apiRequest, loadCatalog } from './api';
 
-export default function SellerPanel({ user, onLogout }) {
+export default function SellerPanel({ user, onUpdateUser, onLogout }) {
   const navigate = useNavigate();
+  const [profileOpen, setProfileOpen] = useState(false);
   const [books, setBooks] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -143,10 +145,20 @@ export default function SellerPanel({ user, onLogout }) {
 
   return (
     <Box sx={{ backgroundColor: '#f4f7f9', minHeight: '100vh', py: 5 }}>
+      <UserProfileModal open={profileOpen} onClose={() => setProfileOpen(false)}
+        user={user} onUpdateUser={onUpdateUser} onLogout={onLogout} />
       <Container maxWidth="lg">
         {user && (
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2, mb: 2 }}>
-            <Typography variant="body2" color="text.secondary">{user.nombre || user.email}</Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+            <Button aria-label="Mi perfil" onClick={() => setProfileOpen(true)} variant="outlined"
+              sx={{ display: 'flex', gap: 1.5, textTransform: 'none', textAlign: 'left', borderRadius: 2,
+                color: '#1e3a5f', borderColor: '#cbd5e1', backgroundColor: '#ffffff', maxWidth: '100%', minWidth: 0 }}>
+              <Avatar sx={{ backgroundColor: '#1e3a5f', flexShrink: 0 }}>{(user.nombre || user.email || 'U').charAt(0).toUpperCase()}</Avatar>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography component="span" sx={{ display: 'block', fontWeight: 700, overflowWrap: 'anywhere' }}>{user.nombre || user.email}</Typography>
+                <Typography component="span" variant="body2" sx={{ display: 'block', color: '#475569' }}>Mi perfil</Typography>
+              </Box>
+            </Button>
             <Button onClick={onLogout} startIcon={<LogoutIcon />} color="error"
               variant="outlined" sx={{ textTransform: 'none', borderRadius: 2 }}>
               Cerrar sesión
@@ -156,7 +168,7 @@ export default function SellerPanel({ user, onLogout }) {
         
         {/* ENCABEZADO Y CONTROLES */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, flexWrap: 'wrap', gap: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
             <Button
               variant="outlined"
               startIcon={<ArrowBackIcon />}
@@ -185,7 +197,7 @@ export default function SellerPanel({ user, onLogout }) {
               '&:hover': { backgroundColor: '#2b5278' }
             }}
           >
-            Agregar Libro
+            Agregar libro
           </Button>
         </Box>
 
@@ -198,6 +210,7 @@ export default function SellerPanel({ user, onLogout }) {
           
           {/* Barra de Filtro Interna */}
           <Box sx={{ p: 2, backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0' }}>
+            <Typography variant="h5" component="h2" sx={{ color: '#1e3a5f', fontWeight: 700, mb: 2 }}>Mi inventario</Typography>
             <TextField
               size="small"
               placeholder="Buscar por título, autor o vendedor..."

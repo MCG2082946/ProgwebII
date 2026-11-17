@@ -18,7 +18,7 @@ async function authenticate(req, res, next) {
   }
   try {
     // Consultar permisos actuales permite aplicar revocaciones de rol.
-    const user = await User.findById(payload.id).select('_id nombre email rol');
+    const user = await User.findById(payload.id).select('_id nombre email rol nombres primerApellido segundoApellido sinSegundoApellido');
     if (!user) return res.status(401).json({ mensaje: 'La cuenta ya no existe.' });
     req.user = user;
     return next();

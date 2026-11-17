@@ -72,7 +72,7 @@ test('creates a book using canonical API fields and shows the refreshed inventor
   const user = userEvent.setup();
   render(<MemoryRouter><SellerPanel user={{ id: 'seller', nombre: 'Ana' }} /></MemoryRouter>);
   await screen.findByText('No se encontraron libros en el inventario.');
-  await user.click(screen.getByRole('button', { name: 'Agregar Libro' }));
+  await user.click(screen.getByRole('button', { name: 'Agregar libro' }));
   const dialog = within(screen.getByRole('dialog'));
   await user.click(dialog.getByRole('combobox', { name: /Categoría/ }));
   await user.click(screen.getByRole('option', { name: 'Historia' }));
