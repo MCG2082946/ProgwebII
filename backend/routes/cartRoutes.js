@@ -10,14 +10,16 @@ const quantity = (value) => Number.isSafeInteger(value) && value > 0;
 const cents = (value) => Math.round(value * 100);
 
 // Releer catálogo: nunca confiar en precios/subtotales guardados o del cliente.
-async function view(items) {
-  const books = items.length ? await Book.find({ _id: { $in: items.map((item) => item.id_libro) } })
-    .select('_id titulo autor precio portada_url stock disponibilidad').lean() : [];
+async function view(items, session) {
+  let query = items.length ? Book.find({ _id: { $in: items.map((item) => item.id_libro) } })
+    .select('_id titulo autor precio portada_url stock disponibilidad') : null;
+  if (query && session) query = query.session(session);
+  const books = query ? await query.lean() : [];
   const byId = new Map(books.map((book) => [String(book._id), book]));
   let totalCents = 0;
   const rows = items.map((item) => {
     const book = byId.get(String(item.id_libro));
-    const available = Boolean(book && book.disponibilidad && book.stock >= item.cantidad &&
+    const available = Boolean(quantity(item.cantidad) && book && book.disponibilidad && book.stock >= item.cantidad &&
       Number.isFinite(book.precio) && book.precio >= 0);
     const subtotalCents = available ? cents(book.precio) * item.cantidad : 0;
     totalCents += subtotalCents;
@@ -95,3 +97,4 @@ router.delete('/items/:id', (req, res, next) => {
   next();
 }, mutate);
 module.exports = router;
+module.exports.view = view;

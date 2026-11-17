@@ -26,7 +26,6 @@ import {
   Close as CloseIcon,
   Logout as LogoutIcon,
   Star as StarIcon,
-  AttachMoney as MoneyIcon,
   Edit as EditIcon,
   Save as SaveIcon,
   Person as PersonIcon,
@@ -42,8 +41,24 @@ const profileDraft = (user) => ({
   email: user?.email || '',
 });
 
-export default function UserProfileModal({ open, onClose, user, onUpdateUser, onLogout, onGoToSellerPanel, wishlist = [], purchasedBooks = [] }) {
+export default function UserProfileModal({ open, onClose, user, onUpdateUser, onLogout, onGoToSellerPanel, wishlist = [] }) {
   const [tabIndex, setTabIndex] = useState(0);
+  const [orders, setOrders] = useState([]);
+  const [historyError, setHistoryError] = useState('');
+  const [historyLoading, setHistoryLoading] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setOrders([]); setHistoryError('');
+    if (open && user && tabIndex === 1) {
+      setHistoryLoading(true);
+      apiRequest('/orders', { auth: true }).then((data) => {
+        if (!Array.isArray(data)) throw new Error('Respuesta de historial invalida.');
+        if (active) setOrders(data);
+      }).catch((error) => { if (active) setHistoryError(error.message); })
+        .finally(() => { if (active) setHistoryLoading(false); });
+    }
+    return () => { active = false; };
+  }, [open, user, tabIndex]);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const pending = useRef(false);
@@ -289,62 +304,17 @@ export default function UserProfileModal({ open, onClose, user, onUpdateUser, on
 
             <Divider sx={{ my: 3 }} />
 
-            {/* SECCIÓN COMPRADOS */}
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1e3a5f', mb: 1.5 }}>
-              Historial de Compras ({purchasedBooks.length})
-            </Typography>
+            <Typography variant="subtitle1">Historial de compras ({orders.length})</Typography>
+            {historyLoading && <Typography role="status">Cargando pedidos...</Typography>}
+            {historyError && <Alert severity="error">{historyError}</Alert>}
+            {!historyLoading && !historyError && orders.length === 0 && <Typography>Aún no has realizado compras.</Typography>}
+            {!historyLoading && !historyError && orders.map((order) => <Paper key={order._id} sx={{ p: 2, my: 1 }}>
+              <Typography>Pedido: {order._id}</Typography>
+              <Typography>{new Date(order.createdAt).toLocaleString()} - {order.metodo_pago} - {order.estado}</Typography>
+              {order.detalles.map((item, index) => <Typography key={index}>{item.titulo} - {item.cantidad} x $ {item.precio_unitario.toFixed(2)}</Typography>)}
+              <Typography>Total: $ {order.total.toFixed(2)}</Typography>
+            </Paper>)}
 
-            {purchasedBooks.length === 0 ? (
-              <Typography variant="body2" sx={{ color: '#94a3b8' }}>Aún no has realizado compras.</Typography>
-            ) : (
-              <Grid container spacing={2}>
-                {purchasedBooks.map((book, idx) => (
-                  <Grid item xs={6} sm={4} md={3} key={idx}>
-                    <Card
-                      elevation={0}
-                      sx={{
-                        border: '1px solid #e2e8f0',
-                        borderRadius: 2,
-                        position: 'relative',
-                        height: '100%',
-                        display: 'flex',
-                        flexDirection: 'column'
-                      }}
-                    >
-                      <Chip
-                        icon={<MoneyIcon sx={{ fontSize: '14px !important', color: '#fff !important' }} />}
-                        label="Comprado"
-                        size="small"
-                        color="success"
-                        sx={{
-                          position: 'absolute',
-                          top: 8,
-                          right: 8,
-                          fontWeight: 600,
-                          fontSize: '0.65rem',
-                          height: 22
-                        }}
-                      />
-                      <CardMedia
-                        component="img"
-                        height="140"
-                        image={book.cover}
-                        alt={book.title}
-                        sx={{ objectFit: 'cover' }}
-                      />
-                      <CardContent sx={{ p: 1.5, flexGrow: 1 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.2, color: '#0f172a', mb: 0.5 }}>
-                          {book.title}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: '#64748b', display: 'block' }}>
-                          {book.author}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                ))}
-              </Grid>
-            )}
           </Box>
         )}
 

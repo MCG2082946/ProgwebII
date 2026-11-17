@@ -67,7 +67,7 @@ test('restaura desde API; agrega sin duplicar, modifica, elimina, recarga y sepa
   await user.click(await screen.findByRole('button', { name: 'Carrito' }));
   await drawer().findByText('2 artículos');
   expect(drawer().getAllByText('Libro persistente')).toHaveLength(1);
-  expect(drawer().getByRole('button', { name: 'Realizar Compra' }).disabled).toBe(true);
+  expect(drawer().getByRole('button', { name: 'Realizar Compra' }).disabled).toBe(false);
   await user.click(drawer().getByRole('button', { name: 'Cerrar carrito' }));
   await waitFor(() => expect(screen.queryByRole('region', { name: 'Carrito de compras' })).toBeNull());
   await user.click(screen.getByRole('button', { name: 'Mi cuenta' }));

@@ -142,6 +142,10 @@ test('lectura omite segundo apellido y una cuenta anterior mantiene nombre y avi
 
 for (const rol of ['vendedor', 'cliente']) {
   test(`Mi perfil identifica la sesión ${rol} y conserva Deseados y Comprados`, async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => [{
+      _id: 'order', createdAt: '2026-01-01', metodo_pago: 'Tarjeta de prueba', estado: 'simulado', total: 10,
+      detalles: [{ titulo: 'Libro comprado', cantidad: 1, precio_unitario: 10 }],
+    }] })));
     const user = userEvent.setup();
     render(<UserProfileModal open user={{ ...cases[0], rol, nombre: 'Ana Pérez López', email: 'ana@example.com' }}
       onClose={() => {}} wishlist={[{ id: 'wish', title: 'Libro deseado', author: 'Autor' }]}
@@ -152,6 +156,6 @@ for (const rol of ['vendedor', 'cliente']) {
     expect(screen.getByRole('button', { name: 'Editar Perfil' })).toBeTruthy();
     await user.click(screen.getByRole('tab', { name: 'Deseados y Comprados' }));
     expect(screen.getByText('Libro deseado')).toBeTruthy();
-    expect(screen.getByText('Libro comprado')).toBeTruthy();
+    expect(await screen.findByText(/Libro comprado/)).toBeTruthy();
   });
 }
