@@ -11,6 +11,7 @@ import {
   CardMedia,
   CardContent,
   Divider,
+  Alert,
   Paper
 } from '@mui/material';
 import {
@@ -21,9 +22,9 @@ import {
   Remove as RemoveIcon
 } from '@mui/icons-material';
 
-export default function CartDrawer({ open, onClose, cartItems, onUpdateQuantity, onRemoveItem, onCheckout }) {
+export default function CartDrawer({ open, onClose, cartItems, onUpdateQuantity, onRemoveItem,
+  totalPrice, loading = false, busy = false, error = '', onRetry, authenticated = false }) {
   const totalItems = cartItems.reduce((acc, item) => acc + item.quantity, 0);
-  const totalPrice = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
   return (
     <Drawer
@@ -34,21 +35,25 @@ export default function CartDrawer({ open, onClose, cartItems, onUpdateQuantity,
         sx: { width: { xs: '100%', sm: 420 }, borderTopLeftRadius: 16, borderBottomLeftRadius: 16 }
       }}
     >
-      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff' }}>
+      <Box role="region" aria-label="Carrito de compras" sx={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff' }}>
         
         {/* Encabezado */}
         <Box sx={{ backgroundColor: '#4a7c9f', color: 'white', py: 2, px: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.1rem' }}>
             Productos seleccionados
           </Typography>
-          <IconButton onClick={onClose} sx={{ color: 'white', p: 0.5 }}>
+          <IconButton aria-label="Cerrar carrito" onClick={onClose} sx={{ color: 'white', p: 0.5 }}>
             <CloseIcon />
           </IconButton>
         </Box>
 
         {/* Lista de Libros */}
         <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {cartItems.length === 0 ? (
+          {!authenticated && <Alert severity="info">Inicia sesión para agregar libros y consultar tu carrito.</Alert>}
+          {loading && <Typography role="status">Cargando carrito...</Typography>}
+          {busy && <Typography role="status">Guardando carrito...</Typography>}
+          {error && <Alert severity="error" action={<Button disabled={loading || busy} onClick={onRetry}>Reintentar</Button>}>{error}</Alert>}
+          {!loading && !error && cartItems.length === 0 ? (
             <Typography sx={{ textAlign: 'center', color: '#64748b', mt: 4 }}>
               Tu carrito está vacío.
             </Typography>
@@ -72,6 +77,7 @@ export default function CartDrawer({ open, onClose, cartItems, onUpdateQuantity,
                     <Typography variant="caption" sx={{ color: '#1e3a5f', fontWeight: 700, display: 'block', mt: 0.5 }}>
                       ${item.price.toFixed(2)} c/u
                     </Typography>
+                    {!item.available && <Typography role="status" variant="caption" color="error">{item.reason} No se incluye en el total.</Typography>}
                   </Box>
 
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1 }}>
@@ -79,15 +85,17 @@ export default function CartDrawer({ open, onClose, cartItems, onUpdateQuantity,
                       <IconButton size="small" sx={{ color: '#64748b' }}>
                         <FavoriteIcon fontSize="small" />
                       </IconButton>
-                      <IconButton size="small" onClick={() => onRemoveItem(item.id)} sx={{ color: '#64748b' }}>
+                      <IconButton aria-label={'Eliminar ' + item.title} disabled={busy || loading || !!error} size="small" onClick={() => onRemoveItem(item.id)} sx={{ color: '#64748b' }}>
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </Box>
 
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <IconButton
+                        aria-label={'Reducir cantidad de ' + item.title}
+                        disabled={busy || loading || !!error || item.quantity <= 1 || !item.stock || item.disponibilidad === false}
                         size="small"
-                        onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
+                        onClick={() => onUpdateQuantity(item.id, Math.min(item.quantity - 1, item.stock))}
                         sx={{ backgroundColor: '#064e3b', color: 'white', width: 24, height: 24, '&:hover': { backgroundColor: '#047857' } }}
                       >
                         <RemoveIcon sx={{ fontSize: 14 }} />
@@ -98,6 +106,8 @@ export default function CartDrawer({ open, onClose, cartItems, onUpdateQuantity,
                       </Typography>
 
                       <IconButton
+                        aria-label={'Aumentar cantidad de ' + item.title}
+                        disabled={busy || loading || !!error || !item.available || item.quantity >= item.stock}
                         size="small"
                         onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
                         sx={{ backgroundColor: '#064e3b', color: 'white', width: 24, height: 24, '&:hover': { backgroundColor: '#047857' } }}
@@ -134,8 +144,7 @@ export default function CartDrawer({ open, onClose, cartItems, onUpdateQuantity,
               fullWidth
               variant="contained"
               size="large"
-              onClick={onCheckout}
-              disabled={cartItems.length === 0}
+              disabled
               sx={{
                 backgroundColor: '#2b4c6f',
                 color: 'white',
@@ -150,6 +159,7 @@ export default function CartDrawer({ open, onClose, cartItems, onUpdateQuantity,
             >
               Realizar Compra
             </Button>
+            <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>La compra todavía no está habilitada.</Typography>
           </Paper>
         </Box>
 

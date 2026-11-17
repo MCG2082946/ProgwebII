@@ -27,7 +27,7 @@ function mount(path = '/') {
 const structured = { nombres: 'Ana', primerApellido: 'Perez', segundoApellido: 'Lopez', sinSegundoApellido: false };
 const seller = { ...structured, _id: '123', nombre: 'Ana', email: 'ana@example.com', rol: 'vendedor' };
 function mockSession(usuario = seller) {
-  const fetchMock = vi.fn(async (url) => ({ ok: true, status: 200, json: async () => url.endsWith('/auth/me') ? { usuario } : url.endsWith('/categories') ? [{ _id: 'cat', nombre: 'Novela' }] : [{ _id: 'book', titulo: 'Libro API', autor: 'Autor', precio: 10, tipoTapa: 'blanda', categoria: 'cat' }] }));
+  const fetchMock = vi.fn(async (url) => ({ ok: true, status: 200, json: async () => url.endsWith('/auth/me') ? { usuario } : url.includes('/cart') ? { items: [], total: 0 } : url.endsWith('/categories') ? [{ _id: 'cat', nombre: 'Novela' }] : [{ _id: 'book', titulo: 'Libro API', autor: 'Autor', precio: 10, tipoTapa: 'blanda', categoria: 'cat' }] }));
   vi.stubGlobal('fetch', fetchMock);
   localStorage.setItem('token', 'jwt-test');
   return fetchMock;
