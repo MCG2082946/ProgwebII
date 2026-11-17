@@ -23,7 +23,7 @@ test('creates the first category, prevents duplicate submits and enables it in t
   localStorage.setItem('token', 'seller-token');
   const user = userEvent.setup();
   panel();
-  const addBook = screen.getByRole('button', { name: 'Agregar Libro' });
+  const addBook = screen.getByRole('button', { name: 'Agregar libro' });
   await user.click(await screen.findByRole('button', { name: 'Crear categoría' }));
   expect(addBook.disabled).toBe(true);
   const dialog = within(screen.getByRole('dialog'));
@@ -41,8 +41,8 @@ test('creates the first category, prevents duplicate submits and enables it in t
   expect(fetchMock.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(1);
   finishSave(response({ categoria: { _id: 'cat', nombre: 'Historia' } }));
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-  expect(screen.getByRole('button', { name: 'Agregar Libro' }).disabled).toBe(false);
-  await user.click(screen.getByRole('button', { name: 'Agregar Libro' }));
+  expect(screen.getByRole('button', { name: 'Agregar libro' }).disabled).toBe(false);
+  await user.click(screen.getByRole('button', { name: 'Agregar libro' }));
   await user.click(within(screen.getByRole('dialog')).getByRole('combobox', { name: /Categoría/ }));
   await user.click(screen.getByRole('option', { name: 'Historia' }));
   expect(within(screen.getByRole('dialog')).getByRole('combobox', { name: /Categoría/ }).textContent).toBe('Historia');
@@ -59,10 +59,10 @@ test('category load failure offers retry without claiming the list is empty', as
   await screen.findByText('No se pudieron cargar las categorías.');
   expect(screen.queryByText(/No hay categorías/)).toBeNull();
   expect(screen.queryByRole('button', { name: 'Crear categoría' })).toBeNull();
-  expect(screen.getByRole('button', { name: 'Agregar Libro' }).disabled).toBe(true);
+  expect(screen.getByRole('button', { name: 'Agregar libro' }).disabled).toBe(true);
   failed = false;
   await user.click(screen.getByRole('button', { name: 'Reintentar' }));
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar Libro' }).disabled).toBe(false));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar libro' }).disabled).toBe(false));
 });
 
 test('category save failure preserves the name and permits retry or cancel', async () => {
@@ -70,7 +70,7 @@ test('category save failure preserves the name and permits retry or cancel', asy
     ? response({ mensaje: 'La categoría ya existe.' }, false) : response([])));
   const user = userEvent.setup();
   panel();
-  const addBook = screen.getByRole('button', { name: 'Agregar Libro' });
+  const addBook = screen.getByRole('button', { name: 'Agregar libro' });
   await user.click(await screen.findByRole('button', { name: 'Crear categoría' }));
   const dialog = within(screen.getByRole('dialog'));
   await user.type(dialog.getByLabelText(/Nombre/), 'Historia');

@@ -1,6 +1,6 @@
 // Apartado de Info. Usuario
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -14,7 +14,7 @@ import {
   Card,
   CardMedia,
   CardContent,
-  InputAdornment,
+  Alert,
   Grid,
   Tabs,
   Tab,
@@ -25,8 +25,6 @@ import {
 import {
   Close as CloseIcon,
   Logout as LogoutIcon,
-  Visibility,
-  VisibilityOff,
   Star as StarIcon,
   AttachMoney as MoneyIcon,
   Edit as EditIcon,
@@ -35,42 +33,64 @@ import {
   Bookmark as BookmarkIcon
 } from '@mui/icons-material';
 
-export default function UserProfileModal({ open, onClose, user, onUpdateUser, onLogout, wishlist = [], purchasedBooks = [] }) {
+import ProfileNameFields from './ProfileNameFields';
+import { nameFields, validateName } from '../profileName';
+import { apiRequest } from '../api';
+
+const profileDraft = (user) => ({
+  ...Object.fromEntries(nameFields.map((key) => [key, user?.[key] ?? (key === 'sinSegundoApellido' ? false : '')])),
+  email: user?.email || '',
+});
+
+export default function UserProfileModal({ open, onClose, user, onUpdateUser, onLogout, onGoToSellerPanel, wishlist = [], purchasedBooks = [] }) {
   const [tabIndex, setTabIndex] = useState(0);
-  const [showPassword, setShowPassword] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: ''
-  });
-
+  const [saving, setSaving] = useState(false);
+  const pending = useRef(false);
+  const incompleteName = user?.nombreIncompleto === true || !validateName(user || {}).valid;
+  const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [success, setSuccess] = useState('');
+  const [formData, setFormData] = useState({ nombres: '', primerApellido: '', segundoApellido: '', sinSegundoApellido: false, email: '' });
   useEffect(() => {
-    if (user) {
-      setFormData({
-        firstName: user.firstName || user.nombre || '',
-        lastName: user.lastName || '',
-        email: user.email || '',
-        password: ''
-      });
+    if (open && user) {
+      setFormData(profileDraft(user));
+      setFieldErrors({});
+      setIsEditing(false); setError(''); setTabIndex(0);
     }
-  }, [user]);
-
-  const handleChange = (field) => (e) => {
-    setFormData((prev) => ({ ...prev, [field]: e.target.value }));
+  }, [user, open]);
+  const handleChange = (field) => (e) => setFormData((prev) => ({ ...prev, [field]: e.target.value }));
+  const handleSave = async () => {
+    if (pending.current) return;
+    setError(''); setSuccess('');
+    const result = validateName(formData);
+    const errors = { ...result.errors };
+    if (formData.email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      errors.email = 'Indica un correo electrónico válido de hasta 254 caracteres.';
+    }
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) return;
+    pending.current = true; setSaving(true);
+    try {
+      const { usuario } = await apiRequest('/auth/me', { method: 'PATCH', auth: true,
+        body: { ...result.data, email: formData.email.trim() } });
+      onUpdateUser(usuario);
+      setIsEditing(false); setSuccess('Perfil guardado.');
+    } catch (error) { setError(error.message); setFieldErrors(error.campos || (error.status === 409 ? { email: error.message } : {})); }
+    finally { pending.current = false; setSaving(false); }
   };
-
-  const handleSave = () => {
-    if (onUpdateUser) onUpdateUser({ nombre: [formData.firstName.trim(), formData.lastName.trim()].filter(Boolean).join(' '), email: formData.email });
-    setIsEditing(false);
+  const close = () => { if (!pending.current) { setSuccess(''); onClose(); } };
+  const cancelEdit = () => {
+    if (pending.current) return;
+    setFormData(profileDraft(user));
+    setFieldErrors({}); setError(''); setSuccess(''); setIsEditing(false);
   };
 
   return (
     <Dialog
+      aria-labelledby="profile-dialog-title"
       open={open}
-      onClose={onClose}
+      onClose={close}
       maxWidth="md"
       fullWidth
       PaperProps={{
@@ -94,10 +114,10 @@ export default function UserProfileModal({ open, onClose, user, onUpdateUser, on
           justifyContent: 'space-between'
         }}
       >
-        <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>
-          Mi Cuenta
+        <Typography id="profile-dialog-title" variant="h6" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>
+          Mi perfil
         </Typography>
-        <IconButton onClick={onClose} sx={{ color: '#ffffff', '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' } }}>
+        <IconButton onClick={close} disabled={saving} aria-label="Cerrar perfil" sx={{ color: '#ffffff', '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' } }}>
           <CloseIcon />
         </IconButton>
       </Box>
@@ -105,6 +125,8 @@ export default function UserProfileModal({ open, onClose, user, onUpdateUser, on
       {/* BARRA DE NAVEGACIÓN DE PESTAÑAS */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', backgroundColor: '#ffffff', px: 2 }}>
         <Tabs
+          variant="scrollable"
+          scrollButtons="auto"
           value={tabIndex}
           onChange={(e, newIndex) => setTabIndex(newIndex)}
           textColor="primary"
@@ -119,106 +141,88 @@ export default function UserProfileModal({ open, onClose, user, onUpdateUser, on
       </Box>
 
       {/* CONTENIDO DEL MODAL */}
-      <DialogContent sx={{ p: 3, minHeight: 420 }}>
+      <DialogContent sx={{ p: { xs: 2, sm: 3 }, minHeight: 420 }}>
         
         {/* PESTAÑA 1: DATOS PERSONALES */}
         {tabIndex === 0 && (
-          <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Avatar sx={{ width: 64, height: 64, backgroundColor: '#1e3a5f', fontSize: '1.5rem', fontWeight: 700 }}>
-                  {formData.firstName ? formData.firstName.charAt(0).toUpperCase() : 'U'}
+          <Paper elevation={0} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2, border: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 0, flex: '1 1 220px' }}>
+                <Avatar sx={{ width: 64, height: 64, flexShrink: 0, backgroundColor: '#1e3a5f', fontSize: '1.5rem', fontWeight: 700 }}>
+                  {user?.nombre ? user?.nombre.charAt(0).toUpperCase() : 'U'}
                 </Avatar>
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>
-                    {formData.firstName} {formData.lastName}
+                <Box sx={{ minWidth: 0 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a', lineHeight: 1.2, overflowWrap: 'anywhere' }}>
+                    {user?.nombre}
                   </Typography>
-                  <Typography variant="body2" sx={{ color: '#64748b' }}>
-                    {formData.email}
+                  {user?.rol === 'vendedor' && <Chip label="Vendedor" size="small" sx={{ backgroundColor: '#e2e8f0', color: '#1e3a5f', fontWeight: 600 }} />}
+                  </Box>
+                  <Typography variant="body2" sx={{ color: '#64748b', overflowWrap: 'anywhere' }}>
+                    {user?.email}
                   </Typography>
                 </Box>
               </Box>
 
-              <Button
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              {isEditing && <Button disabled={saving} onClick={cancelEdit} color="inherit">Cancelar</Button>}
+              {(isEditing || !incompleteName) && <Button
+                disabled={saving}
                 variant={isEditing ? 'contained' : 'outlined'}
                 color={isEditing ? 'primary' : 'inherit'}
                 startIcon={isEditing ? <SaveIcon /> : <EditIcon />}
                 onClick={isEditing ? handleSave : () => setIsEditing(true)}
                 sx={{ textTransform: 'none', borderRadius: 2 }}
               >
-                {isEditing ? 'Guardar Cambios' : 'Editar Perfil'}
-              </Button>
+                {saving ? 'Guardando...' : isEditing ? 'Guardar Cambios' : 'Editar Perfil'}
+              </Button>}
+              </Box>
             </Box>
 
+            {error && <Alert severity="error">{error}</Alert>}
+            {success && <Alert severity="success">{success}</Alert>}
             <Divider sx={{ my: 2 }} />
 
+            {incompleteName &&
+              <Alert severity="info" sx={{ mb: 2, flexWrap: 'wrap', gap: 1, '& .MuiAlert-action': { ml: 0, pl: 0, pt: 0 } }}
+                action={!isEditing && <Button onClick={() => setIsEditing(true)} sx={{ textTransform: 'none', color: '#1e3a5f' }}>Completar perfil</Button>}>
+                Falta completar tu nombre. Indica tus nombres y apellidos para guardar el perfil.
+              </Alert>}
+            {isEditing ? (
             <Grid container spacing={2} sx={{ mt: 1 }}>
-              <Grid item xs={12} sm={6}>
-                <Typography variant="caption" sx={{ fontWeight: 600, color: '#475569', mb: 0.5, display: 'block' }}>
-                  Nombre(s)
-                </Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  disabled={!isEditing}
-                  value={formData.firstName}
-                  onChange={handleChange('firstName')}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
-                />
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <ProfileNameFields value={formData} errors={fieldErrors} disabled={saving}
+                  onChange={(field, value) => setFormData((prev) => ({ ...prev, [field]: value }))} />
               </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <Typography variant="caption" sx={{ fontWeight: 600, color: '#475569', mb: 0.5, display: 'block' }}>
-                  Apellido(s)
-                </Typography>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   size="small"
-                  disabled={!isEditing}
-                  value={formData.lastName}
-                  onChange={handleChange('lastName')}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <Typography variant="caption" sx={{ fontWeight: 600, color: '#475569', mb: 0.5, display: 'block' }}>
-                  Correo electrónico
-                </Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  disabled={!isEditing}
+                  disabled={saving}
+                  error={Boolean(fieldErrors.email)}
+                  helperText={fieldErrors.email}
+                  label="Correo electrónico"
+                  type="email"
                   value={formData.email}
                   onChange={handleChange('email')}
                   sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
                 />
               </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <Typography variant="caption" sx={{ fontWeight: 600, color: '#475569', mb: 0.5, display: 'block' }}>
-                  Contraseña
-                </Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  disabled={!isEditing}
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.password}
-                  onChange={handleChange('password')}
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small">
-                          {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                        </IconButton>
-                      </InputAdornment>
-                    )
-                  }}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
-                />
-              </Grid>
             </Grid>
+            ) : (
+              <Box component="dl" sx={{ m: 0, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+                {Object.entries({ nombres: 'Nombre(s)', primerApellido: 'Primer apellido',
+                  ...(!user?.sinSegundoApellido && user?.segundoApellido ? { segundoApellido: 'Segundo apellido' } : {}),
+                  email: 'Correo electrónico' }).map(([field, label]) => (
+                  <Box key={field}>
+                    <Typography component="dt" variant="caption" sx={{ fontWeight: 600, color: '#475569' }}>{label}</Typography>
+                    <Typography component="dd" variant="body2" sx={{ m: 0, color: '#0f172a', overflowWrap: 'anywhere' }}>{user?.[field] || 'Sin completar'}</Typography>
+                  </Box>
+                ))}
+              </Box>
+            )}
           </Paper>
         )}
 
@@ -346,8 +350,14 @@ export default function UserProfileModal({ open, onClose, user, onUpdateUser, on
 
       </DialogContent>
       {user && (
-        <DialogActions sx={{ px: 3, py: 2, borderTop: 1, borderColor: 'divider' }}>
-          <Button onClick={onLogout} startIcon={<LogoutIcon />} color="error"
+        <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2, borderTop: 1, borderColor: 'divider', flexWrap: 'wrap', gap: 1 }}>
+          {user.rol === 'vendedor' && onGoToSellerPanel && (
+            <Button disabled={saving} variant="outlined" onClick={() => {
+              if (pending.current) return;
+              close(); onGoToSellerPanel();
+            }}>Ir al panel del vendedor</Button>
+          )}
+          <Button disabled={saving} onClick={onLogout} startIcon={<LogoutIcon />} color="error"
             variant="outlined" sx={{ textTransform: 'none', borderRadius: 2 }}>
             Cerrar sesión
           </Button>

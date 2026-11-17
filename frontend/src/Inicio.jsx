@@ -164,27 +164,28 @@ return (
       {user?.rol === 'vendedor' && (
         <Box 
           sx={{ 
-            backgroundColor: '#0f172a', 
+            backgroundColor: '#e2e8f0',
             color: 'white', 
             px: { xs: 2, md: 4 }, 
             py: 1, 
             display: 'flex', 
             justifyContent: 'space-between',
-            alignItems: 'center'
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 1
           }}
         >
-          <Typography variant="body2" sx={{ color: '#cbd5e1' }}>
+          <Typography variant="body2" sx={{ color: '#1e3a5f' }}>
             Sesión iniciada como Vendedor
           </Typography>
           <Button
             size="small"
-            variant="contained"
-            color="secondary"
+            variant="outlined"
             startIcon={<AdminPanelSettingsIcon />}
             onClick={() => navigate('/vendedor')}
-            sx={{ textTransform: 'none', borderRadius: 2 }}
+            sx={{ textTransform: 'none', borderRadius: 2, color: '#1e3a5f', borderColor: '#1e3a5f' }}
           >
-            Ir al Panel de Vendedor
+            Ir al panel del vendedor
           </Button>
         </Box>
       )}
@@ -350,7 +351,8 @@ return (
         onClose={() => setOpenProfileModal(false)}
         user={user}
         onLogout={onLogout}
-        onUpdateUser={(updatedData) => setUser((prev) => ({ ...prev, ...updatedData }))}
+        onUpdateUser={setUser}
+        onGoToSellerPanel={() => navigate('/vendedor')}
         wishlist={books.slice(0, 3)}
         purchasedBooks={purchasedBooks}
       />

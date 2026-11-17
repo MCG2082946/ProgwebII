@@ -1,6 +1,8 @@
 // Modal de Inicio de Sesion y Registro de Usuario
 
 import React, { useState } from 'react';
+import ProfileNameFields from './ProfileNameFields';
+import { validateName } from '../profileName';
 import { API_URL } from '../api';
 import {
   Dialog,
@@ -31,7 +33,8 @@ export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) 
   // Estados del formulario
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
+  const [name, setName] = useState({ nombres: '', primerApellido: '', segundoApellido: '', sinSegundoApellido: false });
+  const [fieldErrors, setFieldErrors] = useState({});
   const [errorMessage, setErrorMessage] = useState(''); 
 
   const handleTabChange = (event, newValue) => {
@@ -44,17 +47,20 @@ export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) 
     e.preventDefault();
     setErrorMessage('');
 
-    if (!email || !password) return;
-
-
     // Determinar endpoint según la pestaña (0: Login, 1: Registro)
     const isRegistering = tabIndex === 1;
     const endpoint = isRegistering 
       ? API_URL + '/auth/registro'
       : API_URL + '/auth/login';
 
+    const result = validateName(name);
+    const errors = isRegistering ? { ...result.errors } : {};
+    if (!password || (isRegistering && password.length < 8)) errors.password = 'Indica una contraseña válida de al menos 8 caracteres para registrarte.';
+    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errors.email = 'Indica un correo válido de hasta 254 caracteres.';
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) return;
     const payload = isRegistering 
-      ? { nombre: name, email, password }
+      ? { ...result.data, email: email.trim(), password }
       : { email, password };
 
     try {
@@ -79,6 +85,7 @@ export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) 
         // Muestra el mensaje específico o el detalle del error devuelto por el backend
         const msgError = data.mensaje || 'Ocurrió un error al procesar la solicitud.';
         setErrorMessage(msgError);
+        setFieldErrors(data.campos || (response.status === 409 ? { email: msgError } : {}));
       }
     } catch (error) {
       console.error('Error de conexión:', error);
@@ -154,19 +161,15 @@ export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) 
         )}
 
         {/* Formulario */}
-        <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Box component="form" noValidate onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {tabIndex === 1 && (
-            <TextField
-              label="Nombre Completo"
-              fullWidth
-              size="small"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
+            <ProfileNameFields value={name} errors={fieldErrors}
+              onChange={(field, value) => setName((prev) => ({ ...prev, [field]: value }))} />
           )}
 
           <TextField
+            error={Boolean(fieldErrors.email)}
+            helperText={fieldErrors.email}
             label="Correo Electrónico"
             type="email"
             fullWidth
@@ -178,6 +181,8 @@ export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) 
 
           <TextField
             label="Contraseña"
+            error={Boolean(fieldErrors.password)}
+            helperText={fieldErrors.password}
             type={showPassword ? 'text' : 'password'}
             fullWidth
             size="small"

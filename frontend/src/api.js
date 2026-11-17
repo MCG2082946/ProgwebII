@@ -9,7 +9,7 @@ export async function apiRequest(path, { auth = false, body, ...options } = {}) 
   });
   if (response.status === 204) return null;
   const data = await response.json();
-  if (!response.ok) throw new Error(data.mensaje || 'No se pudo completar la solicitud.');
+  if (!response.ok) throw Object.assign(new Error(data.mensaje || 'No se pudo completar la solicitud.'), { campos: data.campos, status: response.status });
   return data;
 }
 

@@ -62,7 +62,7 @@ function App() {
         path="/vendedor" 
         element={
           user?.rol === 'vendedor' ? (
-            <DashboardVendedor user={user} onLogout={handleLogout} />
+            <DashboardVendedor user={user} onUpdateUser={setUser} onLogout={handleLogout} />
           ) : (
             <Navigate to="/" replace />
           )
