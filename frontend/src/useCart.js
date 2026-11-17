@@ -1,0 +1,53 @@
+import { useEffect, useRef, useState } from 'react';
+import { apiRequest, bookView } from './api';
+
+function cartView(data) {
+  if (!Array.isArray(data.items) || !Number.isFinite(data.total)) throw new Error('Respuesta del carrito inválida.');
+  return { items: data.items.map((item) => ({
+    ...(item.libro ? bookView(item.libro) : { title: 'Libro retirado del catálogo', price: 0 }),
+    price: item.libro ? Math.round(item.libro.precio * 100) / 100 : 0,
+    id: item.id_libro, quantity: item.cantidad, subtotal: item.subtotal,
+    available: item.disponible, reason: item.motivo,
+  })), total: data.total };
+}
+
+export default function useCart(user) {
+  const identity = user ? String(user.id || user._id || user.email) : '';
+  const scope = useRef(null);
+  const [state, setState] = useState({ identity: '', items: [], total: 0, loading: false, busy: false, error: '' });
+  async function request(session, path = '/cart', options = {}) {
+    if (!session?.active || session.identity !== identity || session.pending) return false;
+    if (options.method && session.needsReload) return false;
+    session.pending = true;
+    const reading = !options.method;
+    setState((current) => ({ ...current, identity: session.identity, error: '', loading: reading, busy: !reading }));
+    try {
+      const data = cartView(await apiRequest(path, { ...options, auth: true }));
+      if (!session.active || scope.current !== session) return false;
+      session.needsReload = false;
+      setState({ identity: session.identity, ...data, loading: false, busy: false, error: '' });
+      return true;
+    } catch (error) {
+      session.needsReload = true;
+      if (session.active && scope.current === session) setState((current) => ({ ...current, error: error.message,
+        loading: false, busy: false, ...(reading ? { items: [], total: 0 } : {}) }));
+      return false;
+    } finally { session.pending = false; }
+  }
+  useEffect(() => {
+    const session = { identity, active: true, pending: false, needsReload: true };
+    scope.current = session;
+    setState({ identity, items: [], total: 0, loading: Boolean(identity), busy: false, error: '' });
+    if (identity) void request(session);
+    return () => { session.active = false; };
+    // La identidad, no los cambios de nombre del perfil, determina el carrito.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identity]);
+  const current = state.identity === identity ? state : { items: [], total: 0, loading: Boolean(identity), busy: false, error: '' };
+  return { ...current,
+    reload: () => identity && request(scope.current),
+    add: (id) => request(scope.current, '/cart/items', { method: 'POST', body: { id_libro: id, cantidad: 1 } }),
+    change: (id, cantidad) => request(scope.current, '/cart/items/' + id, { method: 'PATCH', body: { cantidad } }),
+    remove: (id) => request(scope.current, '/cart/items/' + id, { method: 'DELETE' }),
+  };
+}

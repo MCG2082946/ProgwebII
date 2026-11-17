@@ -12,6 +12,7 @@ app.get('/', (req, res) => res.send('Servidor del Back-End disponible'));
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/books', require('./routes/bookRoutes'));
 app.use('/api/categories', require('./routes/categoryRoutes'));
+app.use('/api/cart', require('./routes/cartRoutes'));
 app.use((req, res) => res.status(404).json({ mensaje: 'Ruta no encontrada.' }));
 app.use(errorHandler);
 

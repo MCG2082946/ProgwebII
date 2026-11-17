@@ -9,6 +9,7 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 // Componentes
 import Navbar from './components/Navbar';
 import { loadCatalog } from './api';
+import useCart from './useCart';
 import BookSlider from './components/BookSlider';
 import BookDetailModal from './components/BookDetailModal';
 import CartDrawer from './components/CartDrawer';
@@ -39,7 +40,7 @@ export default function Inicio({ user, setUser, onLogout }) {
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [reload]);
-  const [purchasedBooks, setPurchasedBooks] = useState([]);
+  const [purchasedBooks] = useState([]);
 
   // Búsqueda y filtros del catálogo
   const [searchTerm, setSearchTerm] = useState('');
@@ -70,7 +71,8 @@ export default function Inicio({ user, setUser, onLogout }) {
 
   // Estados del Carrito
   const [openCart, setOpenCart] = useState(false);
-  const [cartItems, setCartItems] = useState([]);
+  const cart = useCart(user);
+  const cartItems = cart.items;
 
   // Visibilidad de Modales
   const [openLoginModal, setOpenLoginModal] = useState(false);
@@ -116,44 +118,13 @@ export default function Inicio({ user, setUser, onLogout }) {
       return;
     }
 
-    const existing = cartItems.find((item) => item.id === book.id);
-    if (existing) {
-      setCartItems(cartItems.map((item) => (item.id === book.id ? { ...item, quantity: item.quantity + 1 } : item)));
-    } else {
-      setCartItems([...cartItems, { ...book, quantity: 1 }]);
-    }
-    handleShowToast(`"${book.title}" añadido al carrito`, 'success');
+    void cart.add(book.id).then((saved) => {
+      if (saved) handleShowToast('Libro añadido al carrito.', 'success');
+      else setOpenCart(true);
+    });
   };
-
-  // 🔒 VALIDACIÓN DE PROCESO DE COMPRA (CHECKOUT)
-  const handleCheckout = () => {
-    if (!user) {
-      setOpenCart(false);
-      handleShowToast('Debes iniciar sesión para completar tu compra', 'warning');
-      setOpenLoginModal(true);
-      return;
-    }
-
-    if (cartItems.length === 0) {
-      handleShowToast('El carrito está vacío', 'info');
-      return;
-    }
-
-    // Lógica al realizar la compra
-    setPurchasedBooks((prev) => [...prev, ...cartItems]);
-    setCartItems([]);
-    setOpenCart(false);
-    handleShowToast('¡Compra realizada con éxito! Revisa tu perfil para ver tus libros.', 'success');
-  };
-
-  const handleUpdateQuantity = (id, newQty) => {
-    if (newQty <= 0) return handleRemoveItem(id);
-    setCartItems(cartItems.map((item) => (item.id === id ? { ...item, quantity: newQty } : item)));
-  };
-
-  const handleRemoveItem = (id) => {
-    setCartItems(cartItems.filter((item) => item.id !== id));
-  };
+  const handleUpdateQuantity = (id, newQty) => { void cart.change(id, newQty); };
+  const handleRemoveItem = (id) => { void cart.remove(id); };
 
   const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -194,7 +165,7 @@ return (
       <Navbar
         cartCount={totalCartCount}
         logoPath={logoImg}
-        onOpenCart={() => setOpenCart(true)}
+        onOpenCart={() => { setOpenCart(true); if (user) void cart.reload(); }}
         onOpenLogin={() => setOpenLoginModal(true)}
         onOpenProfile={handleOpenProfileOrLogin}
         user={user}
@@ -336,7 +307,12 @@ return (
         cartItems={cartItems}
         onUpdateQuantity={handleUpdateQuantity}
         onRemoveItem={handleRemoveItem}
-        onCheckout={handleCheckout}
+        totalPrice={cart.total}
+        loading={cart.loading}
+        busy={cart.busy}
+        error={cart.error}
+        onRetry={cart.reload}
+        authenticated={Boolean(user)}
       />
 
       <LoginModal
