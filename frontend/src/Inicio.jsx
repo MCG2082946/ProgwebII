@@ -77,7 +77,8 @@ export default function Inicio({ user, setUser, onLogout }) {
 
   // Visibilidad de Modales
   const [openLoginModal, setOpenLoginModal] = useState(false);
-  const [openProfileModal, setOpenProfileModal] = useState(false);
+  const [openProfileModal, setOpenProfileModal] = useState(() => new URLSearchParams(window.location.search).get('pedidos') === '1');
+  const [profileTab, setProfileTab] = useState(() => new URLSearchParams(window.location.search).get('pedidos') === '1' ? 1 : 0);
   const [openDetailModal, setOpenDetailModal] = useState(false);
 
   // Elemento seleccionado
@@ -107,7 +108,7 @@ export default function Inicio({ user, setUser, onLogout }) {
       handleShowToast('Debes iniciar sesión para acceder a tu perfil', 'info');
       setOpenLoginModal(true);
     } else {
-      setOpenProfileModal(true);
+      setProfileTab(0); setOpenProfileModal(true);
     }
   };
 
@@ -332,6 +333,7 @@ return (
         onRetry={cart.reload}
         authenticated={Boolean(user)}
         onCheckout={cart.checkout}
+        onViewOrders={() => { setOpenCart(false); setProfileTab(1); setOpenProfileModal(true); }}
         favorites={favorites}
         onFavorite={handleFavorite}
       />
@@ -344,6 +346,7 @@ return (
       />
 
       <UserProfileModal
+        initialTab={profileTab}
         open={Boolean(user) && openProfileModal}
         onClose={() => setOpenProfileModal(false)}
         user={user}

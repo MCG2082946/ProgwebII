@@ -20,6 +20,7 @@ import {
   Tab,
   Button,
   Chip,
+  Stack,
   Divider
 } from '@mui/material';
 import {
@@ -35,6 +36,7 @@ import {
 import ProfileNameFields from './ProfileNameFields';
 import { nameFields, validateName } from '../profileName';
 import { apiRequest } from '../api';
+import { mxn, orderStatus } from '../paymentDemo';
 
 const profileDraft = (user) => ({
   ...Object.fromEntries(nameFields.map((key) => [key, user?.[key] ?? (key === 'sinSegundoApellido' ? false : '')])),
@@ -42,18 +44,18 @@ const profileDraft = (user) => ({
 });
 
 export default function UserProfileModal({ open, onClose, user, onUpdateUser, onLogout, onGoToSellerPanel, wishlist = [],
-  favoritesLoading = false, favoritesBusy = false, favoritesError = '', onRetryFavorites, onRemoveFavorite }) {
+  favoritesLoading = false, favoritesBusy = false, favoritesError = '', onRetryFavorites, onRemoveFavorite, initialTab = 0 }) {
   const [tabIndex, setTabIndex] = useState(0);
   const [orders, setOrders] = useState([]);
   const [historyError, setHistoryError] = useState('');
   const [historyLoading, setHistoryLoading] = useState(false);
   useEffect(() => {
     let active = true;
-    setOrders([]); setHistoryError('');
-    if (open && user && tabIndex === 1) {
-      setHistoryLoading(true);
+    const shouldLoad = open && Boolean(user) && tabIndex === 1;
+    setOrders([]); setHistoryError(''); setHistoryLoading(shouldLoad);
+    if (shouldLoad) {
       apiRequest('/orders', { auth: true }).then((data) => {
-        if (!Array.isArray(data)) throw new Error('Respuesta de historial invalida.');
+      if (!Array.isArray(data)) throw new Error('Respuesta de historial inválida.');
         if (active) setOrders(data);
       }).catch((error) => { if (active) setHistoryError(error.message); })
         .finally(() => { if (active) setHistoryLoading(false); });
@@ -72,9 +74,9 @@ export default function UserProfileModal({ open, onClose, user, onUpdateUser, on
     if (open && user) {
       setFormData(profileDraft(user));
       setFieldErrors({});
-      setIsEditing(false); setError(''); setTabIndex(0);
+      setIsEditing(false); setError(''); setTabIndex(initialTab);
     }
-  }, [user, open]);
+  }, [user, open, initialTab]);
   const handleChange = (field) => (e) => setFormData((prev) => ({ ...prev, [field]: e.target.value }));
   const handleSave = async () => {
     if (pending.current) return;
@@ -312,15 +314,33 @@ export default function UserProfileModal({ open, onClose, user, onUpdateUser, on
 
             <Divider sx={{ my: 3 }} />
 
-            <Typography variant="subtitle1">Historial de compras ({orders.length})</Typography>
+            <Typography component="h2" variant="h6" sx={{ color: '#1e3a5f', mb: 1 }}>Mis pedidos</Typography>
             {historyLoading && <Typography role="status">Cargando pedidos...</Typography>}
             {historyError && <Alert severity="error">{historyError}</Alert>}
             {!historyLoading && !historyError && orders.length === 0 && <Typography>Aún no has realizado compras.</Typography>}
-            {!historyLoading && !historyError && orders.map((order) => <Paper key={order._id} sx={{ p: 2, my: 1 }}>
-              <Typography>Pedido: {order._id}</Typography>
-              <Typography>{new Date(order.createdAt).toLocaleString()} - {order.metodo_pago} - {order.estado}</Typography>
-              {order.detalles.map((item, index) => <Typography key={index}>{item.titulo} - {item.cantidad} x $ {item.precio_unitario.toFixed(2)}</Typography>)}
-              <Typography>Total: $ {order.total.toFixed(2)}</Typography>
+            {!historyLoading && !historyError && orders.map((order) => <Paper component="article" variant="outlined" key={order._id}
+              sx={{ p: { xs: 1.5, sm: 2 }, my: 1.25, borderRadius: 2 }}>
+              <Stack direction="row" flexWrap="wrap" justifyContent="space-between" alignItems="baseline" gap={1}>
+                <Typography component="h3" sx={{ fontWeight: 700, color: '#1e3a5f', overflowWrap: 'anywhere' }}>
+                  {order.folio ? `Folio: ${order.folio}` : `Pedido anterior: ${order._id}`}
+                </Typography>
+                <Typography sx={{ fontWeight: 700 }}>{mxn.format(order.total)}</Typography>
+              </Stack>
+              <Chip size="small" label={orderStatus(order.estado)} variant="outlined"
+                color={order.estado === 'pendiente_pago' ? 'warning' : order.estado === 'pago_aprobado_demo' ? 'success' : 'default'}
+                sx={{ mt: 1 }} />
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                {new Date(order.createdAt).toLocaleString('es-MX')} · {order.metodo_pago}
+              </Typography>
+              {order.detalles.length > 0 && <Box component="details" sx={{ mt: 1.25 }}>
+                <Typography component="summary" variant="body2" sx={{ cursor: 'pointer', color: '#1e3a5f', width: 'fit-content' }}>
+                  Libros del pedido
+                </Typography>
+                <Box component="ul" sx={{ pl: 2.5, my: 1 }}>
+                  {order.detalles.map((item, index) => <Typography component="li" variant="body2" key={item._id || index}
+                    sx={{ overflowWrap: 'anywhere' }}>{item.titulo} · Cantidad: {item.cantidad}</Typography>)}
+                </Box>
+              </Box>}
             </Paper>)}
 
           </Box>

@@ -44,16 +44,23 @@ export default function useCart(user) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [identity]);
   const current = state.identity === identity ? state : { items: [], total: 0, loading: Boolean(identity), busy: false, error: '' };
-  async function checkout(key) {
+  async function checkout(key, method) {
     const session = scope.current;
     if (!session?.active || session.pending) return;
     session.pending = true;
     setState((current) => ({ ...current, busy: true }));
     try {
       const storageKey = 'checkout:' + session.identity;
-      key = sessionStorage.getItem(storageKey) || key;
-      sessionStorage.setItem(storageKey, key);
-      const order = await apiRequest('/orders', { method: 'POST', auth: true, body: { clave_compra: key } });
+      const saved = sessionStorage.getItem(storageKey);
+      if (saved) {
+        try {
+          const pending = JSON.parse(saved);
+          if (pending.method !== 'paypal') key = pending.key;
+        }
+        catch { key = saved; }
+      }
+      sessionStorage.setItem(storageKey, JSON.stringify({ key, method }));
+      const order = await apiRequest('/orders', { method: 'POST', auth: true, body: { clave_compra: key, metodo_pago: method } });
       if (!session.active || scope.current !== session) return;
       sessionStorage.removeItem(storageKey);
       try {
