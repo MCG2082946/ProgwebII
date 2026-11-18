@@ -34,15 +34,18 @@ import {
   ArrowBack as ArrowBackIcon,
   Storefront as StorefrontIcon,
   Close as CloseIcon,
-  Logout as LogoutIcon
+  Logout as LogoutIcon,
+  BarChart as BarChartIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import UserProfileModal from './components/UserProfileModal';
+import SellerReports from './components/SellerReports';
 import { apiRequest, loadCatalog } from './api';
 
 export default function SellerPanel({ user, onUpdateUser, onLogout }) {
   const navigate = useNavigate();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [showReports, setShowReports] = useState(false);
   const [books, setBooks] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -182,25 +185,32 @@ export default function SellerPanel({ user, onUpdateUser, onLogout }) {
             </Typography>
           </Box>
 
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            disabled={loading || !!error || busy || !categories.length}
-            onClick={handleOpenAdd}
-            sx={{
-              backgroundColor: '#1e3a5f',
-              borderRadius: 3,
-              px: 3,
-              py: 1,
-              fontWeight: 700,
-              textTransform: 'none',
-              '&:hover': { backgroundColor: '#2b5278' }
-            }}
-          >
-            Agregar libro
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+            <Button variant="outlined" startIcon={showReports ? <ArrowBackIcon /> : <BarChartIcon />}
+              onClick={() => setShowReports((visible) => !visible)} sx={{ color: '#1e3a5f', textTransform: 'none' }}>
+              {showReports ? 'Volver al inventario' : 'Reportes'}
+            </Button>
+            {!showReports && <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              disabled={loading || !!error || busy || !categories.length}
+              onClick={handleOpenAdd}
+              sx={{
+                backgroundColor: '#1e3a5f',
+                borderRadius: 3,
+                px: 3,
+                py: 1,
+                fontWeight: 700,
+                textTransform: 'none',
+                '&:hover': { backgroundColor: '#2b5278' }
+              }}
+            >
+              Agregar libro
+            </Button>}
+          </Box>
         </Box>
 
+        {showReports ? <SellerReports key={user?._id || user?.id} /> : <>
         {error && <Alert severity="error" action={<Button onClick={() => setReload((n) => n + 1)}>Reintentar</Button>}>{error}</Alert>}
         {!loading && !error && !categories.length && <Alert severity="info" action={
           <Button onClick={() => { setCategoryName(''); setCategoryError(''); setCategoryModal(true); }}>Crear categoría</Button>
@@ -308,6 +318,7 @@ export default function SellerPanel({ user, onUpdateUser, onLogout }) {
           </TableContainer>
         </Paper>
 
+        </>}
       </Container>
 
       <Dialog open={categoryModal} onClose={() => { if (!savingCategory) setCategoryModal(false); }}
