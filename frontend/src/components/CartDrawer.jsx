@@ -1,8 +1,8 @@
 // Modal de carrito de compras
 
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
+import CheckoutDialog from './CheckoutDialog';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions,
   Drawer,
   Box,
   Typography,
@@ -25,24 +25,9 @@ import {
 } from '@mui/icons-material';
 
 export default function CartDrawer({ open, onClose, cartItems, onUpdateQuantity, onRemoveItem,
-  totalPrice, loading = false, busy = false, error = '', onRetry, authenticated = false, onCheckout, favorites, onFavorite }) {
+  totalPrice, loading = false, busy = false, error = '', onRetry, authenticated = false, onCheckout, favorites, onFavorite, onViewOrders }) {
   const [summary, setSummary] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [purchaseError, setPurchaseError] = useState('');
-  const [order, setOrder] = useState(null);
-  const pending = useRef(false);
-  const key = useRef(null);
   const canBuy = authenticated && cartItems.length > 0 && cartItems.every((item) => item.available) && !loading && !busy && !error;
-  async function confirm() {
-    if (pending.current) return;
-    pending.current = true; setSending(true); setPurchaseError('');
-    try {
-      key.current ||= crypto.randomUUID();
-      const result = await onCheckout(key.current);
-      if (result) { setOrder(result); key.current = null; }
-    } catch (error) { setPurchaseError(error.message); }
-    finally { pending.current = false; setSending(false); }
-  }
   const totalItems = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
   return (
@@ -167,8 +152,8 @@ export default function CartDrawer({ open, onClose, cartItems, onUpdateQuantity,
               fullWidth
               variant="contained"
               size="large"
-              disabled={!canBuy || sending}
-              onClick={() => { setSummary(true); setOrder(null); setPurchaseError(''); }}
+              disabled={!canBuy}
+              onClick={() => setSummary(true)}
               sx={{
                 backgroundColor: '#2b4c6f',
                 color: 'white',
@@ -183,27 +168,12 @@ export default function CartDrawer({ open, onClose, cartItems, onUpdateQuantity,
             >
               Realizar Compra
             </Button>
-            <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>Esta compra es una simulación. No se realizará ningún cargo</Typography>
           </Paper>
         </Box>
 
       </Box>
-      <Dialog open={open && summary} onClose={() => { if (!sending) setSummary(false); }} fullWidth>
-        <DialogTitle>{order ? 'Compra simulada confirmada' : 'Resumen de compra'}</DialogTitle>
-        <DialogContent>
-          <Alert severity="info">Esta compra es una simulación. No se realizará ningún cargo</Alert>
-          {purchaseError && <Alert severity="error">{purchaseError}</Alert>}
-          {order ? <Typography>Número de pedido: {order._id}</Typography> : <>
-            {cartItems.map((item) => <Typography key={item.id}>{item.title} · {item.quantity} × ${item.price.toFixed(2)}</Typography>)}
-            <Typography>Total: ${totalPrice.toFixed(2)}</Typography>
-            <Typography>Método: Tarjeta de prueba</Typography>
-          </>}
-        </DialogContent>
-        <DialogActions>
-          <Button disabled={sending} onClick={() => setSummary(false)}>Cerrar</Button>
-          {!order && <Button disabled={sending || !canBuy} onClick={confirm}>{sending ? 'Confirmando...' : 'Confirmar compra simulada'}</Button>}
-        </DialogActions>
-      </Dialog>
+      {open && summary && <CheckoutDialog items={cartItems} total={totalPrice} canBuy={canBuy}
+        onCheckout={onCheckout} onClose={() => setSummary(false)} onViewOrders={onViewOrders} onRetry={onRetry} />}
     </Drawer>
   );
 }
