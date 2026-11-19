@@ -1,8 +1,13 @@
+const { recordHttpError } = require('../services/eventLog');
+
 function httpError(status, mensaje) {
   return Object.assign(new Error(mensaje), { status });
 }
 function errorHandler(error, req, res, next) {
-  if (res.headersSent) return next(error);
+  if (res.headersSent) {
+    recordHttpError(req);
+    return next(error);
+  }
   if (error.code === 11000) return res.status(409).json({ mensaje: 'El registro ya existe.' });
   if (['ValidationError', 'CastError'].includes(error.name)) {
     return res.status(400).json({ mensaje: 'Los datos enviados no son válidos.' });
@@ -14,6 +19,7 @@ function errorHandler(error, req, res, next) {
     return res.status(413).json({ mensaje: 'La solicitud es demasiado grande.' });
   }
   const status = error.status >= 400 && error.status < 500 ? error.status : 500;
+  if (status === 500) recordHttpError(req);
   if (status < 500 && error.campos) return res.status(status).json({ mensaje: error.message, campos: error.campos });
   return res.status(status).json({ mensaje: status === 500 ? 'Error interno del servidor.' : error.message });
 }
