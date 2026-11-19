@@ -20,6 +20,12 @@ import Footer from './components/Footer';
 // Logotipo de la librería
 import logoImg from './assets/logo.png';
 
+const PRICE_RANGES_MXN = [
+  { id: 'under-200', label: 'Menos de $200', min: 0, max: 200 },
+  { id: '200-to-400', label: '$200 a $399.99', min: 200, max: 400 },
+  { id: '400-and-up', label: '$400 o más', min: 400, max: Infinity },
+];
+
 export default function Inicio({ user, setUser, onLogout }) {
   const navigate = useNavigate();
 
@@ -44,7 +50,8 @@ export default function Inicio({ user, setUser, onLogout }) {
   // Búsqueda y filtros del catálogo
   const [searchTerm, setSearchTerm] = useState('');
   const [bindingFilter, setBindingFilter] = useState('Todas');
-  const [priceFilter, setPriceFilter] = useState('Todos');
+  const [priceFilter, setPriceFilter] = useState('all');
+  const priceRange = PRICE_RANGES_MXN.find(({ id }) => id === priceFilter);
 
   const filteredBooks = books.filter((book) => {
     const query = searchTerm.trim().toLowerCase();
@@ -54,10 +61,8 @@ export default function Inicio({ user, setUser, onLogout }) {
 
     const matchesBinding = bindingFilter === 'Todas' || book.binding === bindingFilter;
 
-    let matchesPrice = true;
-    if (priceFilter === 'Menos de $20') matchesPrice = book.price < 20;
-    if (priceFilter === '$20 - $24.99') matchesPrice = book.price >= 20 && book.price < 25;
-    if (priceFilter === '$25 o más') matchesPrice = book.price >= 25;
+    const matchesPrice = !priceRange ||
+      (book.price >= priceRange.min && book.price < priceRange.max);
 
     return matchesSearch && matchesBinding && matchesPrice && (!categoryFilter || book.categoryIds.includes(categoryFilter));
   });
@@ -65,7 +70,7 @@ export default function Inicio({ user, setUser, onLogout }) {
   const clearFilters = () => {
     setSearchTerm('');
     setBindingFilter('Todas'); setCategoryFilter('');
-    setPriceFilter('Todos');
+    setPriceFilter('all');
   };
 
   // Estados del Carrito
@@ -159,7 +164,7 @@ export default function Inicio({ user, setUser, onLogout }) {
 
 return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#f4f7f9' }}>
-      
+
       {/* Navbar */}
       <Navbar
         cartCount={totalCartCount}
@@ -231,14 +236,14 @@ return (
               select
               fullWidth
               size="small"
-              label="Precio"
+              label="Precio (MXN)"
               value={priceFilter}
               onChange={(e) => setPriceFilter(e.target.value)}
             >
-              <MenuItem value="Todos">Todos</MenuItem>
-              <MenuItem value="Menos de $20">Menos de $20</MenuItem>
-              <MenuItem value="$20 - $24.99">$20 - $24.99</MenuItem>
-              <MenuItem value="$25 o más">$25 o más</MenuItem>
+              <MenuItem value="all">Todos</MenuItem>
+              {PRICE_RANGES_MXN.map(({ id, label }) => (
+                <MenuItem key={id} value={id}>{label}</MenuItem>
+              ))}
             </TextField>
 
             <TextField select fullWidth size="small" label="Categoría" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
