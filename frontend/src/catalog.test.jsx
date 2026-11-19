@@ -48,8 +48,8 @@ test('saved edits survive remount, appear in public catalog and deletion refresh
   view.unmount();
   view = render(<MemoryRouter><Inicio /></MemoryRouter>);
   expect((await screen.findAllByRole('img', { name: 'ACTUALIZADO' }))[0].getAttribute('src')).toBe(cover);
-  await user.click(screen.getByRole('combobox', { name: 'Precio' }));
-  await user.click(screen.getByRole('option', { name: '$25 o más' }));
+  await user.click(screen.getByRole('combobox', { name: 'Precio (MXN)' }));
+  await user.click(screen.getByRole('option', { name: '$400 o más' }));
   expect(screen.queryByText('ACTUALIZADO')).toBeNull();
   await user.click(screen.getByRole('button', { name: 'Limpiar' }));
   await user.click(screen.getByRole('combobox', { name: 'Encuadernación' }));
@@ -145,4 +145,34 @@ test('API failure shows error and retry without local book fallback', async () =
   await screen.findByText('API no disponible');
   expect(screen.getByRole('button', { name: 'Reintentar' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Añadir al carrito' })).toBeNull();
+});
+
+test('filters catalog prices in MXN without gaps at the range boundaries', async () => {
+  const titles = ['Antes de 200', 'Exactamente 200', 'Antes de 400', 'Exactamente 400'];
+  const books = [199.99, 200, 399.99, 400].map((precio, index) => ({
+    _id: String(index), titulo: titles[index], autor: 'Autora', precio,
+    stock: 2, tipoTapa: 'dura', disponibilidad: true,
+  }));
+  vi.stubGlobal('fetch', vi.fn(async (url) => ({
+    ok: true, json: async () => url.endsWith('/categories') ? [] : books,
+  })));
+
+  const user = userEvent.setup();
+  render(<MemoryRouter><Inicio /></MemoryRouter>);
+  await screen.findAllByText(titles[0]);
+
+  for (const [label, visible] of [
+    ['Menos de $200', [0]],
+    ['$200 a $399.99', [1, 2]],
+    ['$400 o más', [3]],
+  ]) {
+    await user.click(screen.getByRole('combobox', { name: 'Precio (MXN)' }));
+    await user.click(screen.getByRole('option', { name: label }));
+    titles.forEach((title, index) => {
+      expect(screen.queryAllByText(title).length > 0).toBe(visible.includes(index));
+    });
+  }
+
+  await user.click(screen.getByRole('button', { name: 'Limpiar' }));
+  titles.forEach((title) => expect(screen.queryAllByText(title).length).toBeGreaterThan(0));
 });
