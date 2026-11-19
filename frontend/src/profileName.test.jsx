@@ -40,8 +40,9 @@ for (const mode of ['registro', 'perfil']) {
       }
       await fill(user, data);
       await user.click(screen.getByRole('button', { name: mode === 'registro' ? 'Registrarme' : 'Guardar Cambios' }));
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+      const writes = fetchMock.mock.calls.filter(([, options]) => ['POST', 'PATCH'].includes(options?.method));
+      expect(writes).toHaveLength(1);
+      const payload = JSON.parse(writes[0][1].body);
       expect(payload).toEqual({ ...validateName(data).data, email: 'test@example.com', ...(mode === 'registro' ? { password: 'password123' } : {}) });
       expect(payload.nombre).toBeUndefined();
       expect(success).toHaveBeenCalled();
@@ -73,7 +74,7 @@ for (const mode of ['registro', 'perfil']) {
     await user.click(screen.getByRole('checkbox'));
     await save();
     expect(screen.getByText(/No puedes indicar un segundo apellido/)).toBeTruthy();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls.filter(([, options]) => ['POST', 'PATCH'].includes(options?.method))).toHaveLength(0);
     await user.click(screen.getByRole('checkbox'));
     expect(screen.getByRole('textbox', { name: /Segundo apellido/ }).value).toBe('López');
   });
@@ -114,7 +115,7 @@ test('lectura con etiquetas, sin controles; cancelar descarta el borrador sin ll
   expect(screen.getByLabelText(/Nombre\(s\)/).value).toBe('Ana');
   expect(screen.getByLabelText('Correo electr\u00f3nico').value).toBe('ana@example.com');
   expect(screen.getByLabelText(/Nombre\(s\)/).getAttribute('aria-invalid')).toBe('false');
-  expect(fetchMock).not.toHaveBeenCalled();
+  expect(fetchMock.mock.calls.filter(([, options]) => options?.method === 'PATCH')).toHaveLength(0);
   expect(update).not.toHaveBeenCalled();
 });
 

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Container, Snackbar, Alert, Button, Typography, TextField, MenuItem, InputAdornment, Paper } from '@mui/material';
-import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
@@ -60,7 +59,7 @@ export default function Inicio({ user, setUser, onLogout }) {
     if (priceFilter === '$20 - $24.99') matchesPrice = book.price >= 20 && book.price < 25;
     if (priceFilter === '$25 o más') matchesPrice = book.price >= 25;
 
-    return matchesSearch && matchesBinding && matchesPrice && (!categoryFilter || book.categoryId === categoryFilter);
+    return matchesSearch && matchesBinding && matchesPrice && (!categoryFilter || book.categoryIds.includes(categoryFilter));
   });
 
   const clearFilters = () => {
@@ -82,7 +81,11 @@ export default function Inicio({ user, setUser, onLogout }) {
   const [openDetailModal, setOpenDetailModal] = useState(false);
 
   // Elemento seleccionado
-  const [selectedBook, setSelectedBook] = useState(null);
+  const [selectedBookId, setSelectedBookId] = useState(null);
+  const selectedBook = books.find((book) => book.id === selectedBookId);
+  const accountId = user?.id ?? user?._id;
+  const ownsBook = (book) => accountId != null && book?.id_vendedor != null &&
+    String(accountId) === String(book.id_vendedor);
 
   // Alertas Toast
   const [toast, setToast] = useState({ open: false, message: '', severity: 'info' });
@@ -114,6 +117,11 @@ export default function Inicio({ user, setUser, onLogout }) {
 
   // 🔒 VALIDACIÓN DE AÑADIR AL CARRITO
   const handleAddToCart = (book) => {
+    if (ownsBook(book)) return;
+    if (!book.available) {
+      handleShowToast('Este libro no está disponible.', 'warning');
+      return;
+    }
     if (!user) {
       handleShowToast('Debes iniciar sesión para añadir productos al carrito', 'warning');
       setOpenLoginModal(true);
@@ -124,6 +132,16 @@ export default function Inicio({ user, setUser, onLogout }) {
       if (saved) handleShowToast('Libro añadido al carrito.', 'success');
       else setOpenCart(true);
     });
+  };
+  const handleCheckout = async (key, method) => {
+    try {
+      const order = await cart.checkout(key, method);
+      if (order?.estado === 'pago_aprobado_demo') setReload((current) => current + 1);
+      return order;
+    } catch (error) {
+      if (error.status === 409) setReload((current) => current + 1);
+      throw error;
+    }
   };
   const handleUpdateQuantity = (id, newQty) => { void cart.change(id, newQty); };
   const handleRemoveItem = (id) => { void cart.remove(id); };
@@ -142,36 +160,6 @@ export default function Inicio({ user, setUser, onLogout }) {
 return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#f4f7f9' }}>
       
-      {/* Barra superior si es vendedor */}
-      {user?.rol === 'vendedor' && (
-        <Box 
-          sx={{ 
-            backgroundColor: '#e2e8f0',
-            color: 'white', 
-            px: { xs: 2, md: 4 }, 
-            py: 1, 
-            display: 'flex', 
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 1
-          }}
-        >
-          <Typography variant="body2" sx={{ color: '#1e3a5f' }}>
-            Sesión iniciada como Vendedor
-          </Typography>
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<AdminPanelSettingsIcon />}
-            onClick={() => navigate('/vendedor')}
-            sx={{ textTransform: 'none', borderRadius: 2, color: '#1e3a5f', borderColor: '#1e3a5f' }}
-          >
-            Ir al panel del vendedor
-          </Button>
-        </Box>
-      )}
-
       {/* Navbar */}
       <Navbar
         cartCount={totalCartCount}
@@ -180,7 +168,6 @@ return (
         onOpenLogin={() => setOpenLoginModal(true)}
         onOpenProfile={handleOpenProfileOrLogin}
         user={user}
-        onShowToast={handleShowToast}
       />
 
       {/* Contenido Principal */}
@@ -238,7 +225,6 @@ return (
               <MenuItem value="Todas">Todas</MenuItem>
               <MenuItem value="Tapa blanda">Tapa blanda</MenuItem>
               <MenuItem value="Tapa dura">Tapa dura</MenuItem>
-              <MenuItem value="Edición especial">Edición especial</MenuItem>
             </TextField>
 
             <TextField
@@ -283,21 +269,23 @@ return (
           title="Libros en Tendencia"
           books={filteredBooks}
           isSeller={false}
-          onSelect={(book) => { setSelectedBook(book); setOpenDetailModal(true); }}
+          onSelect={(book) => { setSelectedBookId(book.id); setOpenDetailModal(true); }}
           favorites={favorites}
           onFavorite={handleFavorite}
           onAddToCart={handleAddToCart}
+          ownsBook={ownsBook}
         />
 
-        <BookSlider
+        {!categoryFilter && <BookSlider
           title="Novedades y Preventas"
           books={[...filteredBooks].reverse()}
           isSeller={false}
-          onSelect={(book) => { setSelectedBook(book); setOpenDetailModal(true); }}
+          onSelect={(book) => { setSelectedBookId(book.id); setOpenDetailModal(true); }}
           favorites={favorites}
           onFavorite={handleFavorite}
           onAddToCart={handleAddToCart}
-        />
+          ownsBook={ownsBook}
+        />}
           </>
         ) : (
           <Box sx={{ textAlign: 'center', py: 8, px: 2 }}>
@@ -316,7 +304,7 @@ return (
       </Container>
 
       {/* Footer */}
-      <Footer logoPath={logoImg} /> {/* 👈 Agregado aquí al final */}
+      <Footer />
 
       {/* Componentes modulares (Modales, Drawer y Toast) */}
       <CartDrawer
@@ -331,8 +319,13 @@ return (
         busy={cart.busy}
         error={cart.error}
         onRetry={cart.reload}
+        onCheckAvailability={async () => {
+          const latest = await cart.reload();
+          if (latest && latest.items.some((item) => !item.available)) setReload((current) => current + 1);
+          return latest;
+        }}
         authenticated={Boolean(user)}
-        onCheckout={cart.checkout}
+        onCheckout={handleCheckout}
         onViewOrders={() => { setOpenCart(false); setProfileTab(1); setOpenProfileModal(true); }}
         favorites={favorites}
         onFavorite={handleFavorite}
@@ -353,6 +346,7 @@ return (
         onLogout={onLogout}
         onUpdateUser={setUser}
         onGoToSellerPanel={() => navigate('/vendedor')}
+        onGoToAdminPanel={() => navigate('/administracion')}
         wishlist={favorites.items}
         favoritesLoading={favorites.loading}
         favoritesBusy={favorites.busy}
@@ -364,6 +358,7 @@ return (
       <BookDetailModal
         open={openDetailModal}
         book={selectedBook}
+        ownPublication={ownsBook(selectedBook)}
         onClose={() => setOpenDetailModal(false)}
         onAddToCart={handleAddToCart}
         favorite={favorites.has(selectedBook?.id)}

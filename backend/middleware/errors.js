@@ -14,7 +14,7 @@ function errorHandler(error, req, res, next) {
     return res.status(413).json({ mensaje: 'La solicitud es demasiado grande.' });
   }
   const status = error.status >= 400 && error.status < 500 ? error.status : 500;
-  if (status === 400 && error.campos) return res.status(400).json({ mensaje: error.message, campos: error.campos });
+  if (status < 500 && error.campos) return res.status(status).json({ mensaje: error.message, campos: error.campos });
   return res.status(status).json({ mensaje: status === 500 ? 'Error interno del servidor.' : error.message });
 }
 module.exports = { httpError, errorHandler };

@@ -5,7 +5,9 @@ import { API_URL } from './api';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import Inicio from './Inicio';
 import DashboardVendedor from './DashboardVendedor';
+import AdminPanel from './AdminPanel';
 import NotExist from './NotExists';
+import StoreInformation from './components/StoreInformation';
 
 function App() {
   const navigate = useNavigate();
@@ -69,6 +71,9 @@ function App() {
         } 
       />
 
+      <Route path="/administracion" element={user?.rol === 'administrador'
+        ? <AdminPanel onLogout={handleLogout} /> : <Navigate to="/" replace />} />
+      <Route path="/informacion/:page" element={<StoreInformation />} />
       <Route path="*" element={<NotExist />} />
     </Routes>
   );

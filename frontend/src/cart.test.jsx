@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import App from './App';
 import useCart from './useCart';
 
-afterEach(() => { cleanup(); localStorage.clear(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear(); vi.unstubAllGlobals(); });
 const book = { _id: 'book', titulo: 'Libro persistente', autor: 'Autora', precio: 12.5,
   stock: 6, disponibilidad: true, categoria: 'cat', tipoTapa: 'blanda' };
 const account = (id) => ({ id, nombre: 'Cuenta ' + id, rol: 'cliente', email: id + '@example.com' });
@@ -43,6 +43,51 @@ function service(initial = { a: 2, b: 0 }) {
 const mount = () => render(<MemoryRouter><App /></MemoryRouter>);
 const drawer = () => within(screen.getByRole('region', { name: 'Carrito de compras' }));
 
+test.each([false, true])('stock changed with checkout already open = %s refreshes the cart and allows removal', async (alreadyOpen) => {
+  let stock = 6;
+  let quantity = 0;
+  const title = book.titulo;
+  const message = `«${title}» está agotado. Elimínalo del carrito para continuar.`;
+  const fetchMock = vi.fn(async (url, options = {}) => {
+    if (url.endsWith('/auth/me')) return response({ usuario: account('a') });
+    if (url.endsWith('/books')) return response([{ ...book, stock }]);
+    if (url.endsWith('/orders') && options.method === 'POST') return response({ mensaje: message }, false);
+    if (url.includes('/cart')) {
+      if (options.method === 'POST') quantity += 1;
+      if (options.method === 'DELETE') quantity = 0;
+      const cart = data(quantity, { ...book, stock }, stock > 0);
+      if (stock === 0 && quantity) cart.items[0].motivo = 'Agotado. Elimínalo para continuar.';
+      return response(cart);
+    }
+    return response([]);
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  localStorage.setItem('token', 'token-a');
+  const user = userEvent.setup();
+  mount();
+  await user.click((await screen.findAllByRole('button', { name: 'Añadir al carrito' }))[0]);
+  await waitFor(() => expect(quantity).toBe(1));
+  await user.click(screen.getByRole('button', { name: 'Carrito' }));
+  await waitFor(() => expect(drawer().getByRole('button', { name: 'Realizar Compra' }).disabled).toBe(false));
+  if (!alreadyOpen) stock = 0;
+  await user.click(drawer().getByRole('button', { name: 'Realizar Compra' }));
+  if (alreadyOpen) {
+    await user.click(await screen.findByRole('radio', { name: 'Transferencia SPEI' }));
+    stock = 0;
+    const confirm = screen.getByRole('button', { name: 'Registrar pedido' });
+    expect(confirm.disabled).toBe(false);
+    await user.click(confirm);
+    expect(await within(confirm.closest('[role="dialog"]')).findByText(message)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Volver al carrito' }));
+  }
+  expect(quantity).toBe(1);
+  expect(await drawer().findByText(/Agotado\. Elimínalo para continuar/)).toBeTruthy();
+  expect(drawer().getByRole('button', { name: 'Realizar Compra' }).disabled).toBe(true);
+  expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/orders'))).toHaveLength(alreadyOpen ? 1 : 0);
+  await user.click(drawer().getByRole('button', { name: 'Eliminar ' + title }));
+  expect(await drawer().findByText('Tu carrito está vacío.')).toBeTruthy();
+}, 10000);
+
 test('restaura desde API; agrega sin duplicar, modifica, elimina, recarga y separa sesiones sin borrar MongoDB', async () => {
   const { stored, fetchMock } = service();
   const user = userEvent.setup(); let view = mount();
@@ -59,7 +104,7 @@ test('restaura desde API; agrega sin duplicar, modifica, elimina, recarga y sepa
   await user.click(drawer().getByRole('button', { name: 'Cerrar carrito' }));
   await waitFor(() => expect(screen.queryByRole('region', { name: 'Carrito de compras' })).toBeNull());
   for (let i = 0; i < 2; i += 1) {
-    await user.click((await screen.findAllByRole('button', { name: 'Añadir a compra' }))[0]);
+    await user.click((await screen.findAllByRole('button', { name: 'Añadir al carrito' }))[0]);
     await waitFor(() => expect(stored.a).toBe(i + 1));
   }
   await waitFor(() => expect(within(screen.getByRole('button', { name: 'Carrito' })).getByText('2')).toBeTruthy());
@@ -86,7 +131,7 @@ test('restaura desde API; agrega sin duplicar, modifica, elimina, recarga y sepa
 test('visitante recibe indicación de iniciar sesión sin escrituras al carrito', async () => {
   const { fetchMock } = service(); localStorage.removeItem('token');
   const user = userEvent.setup(); mount();
-  await user.click((await screen.findAllByRole('button', { name: 'Añadir a compra' }))[0]);
+  await user.click((await screen.findAllByRole('button', { name: 'Añadir al carrito' }))[0]);
   await screen.findByText('Debes iniciar sesión para añadir productos al carrito');
   expect(screen.getByRole('button', { name: 'Iniciar Sesión' })).toBeTruthy();
   expect(fetchMock.mock.calls.some(([url]) => url.includes('/cart'))).toBe(false);

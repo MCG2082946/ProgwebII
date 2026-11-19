@@ -28,7 +28,7 @@ test('creates the first category, prevents duplicate submits and enables it in t
   expect(addBook.disabled).toBe(true);
   const dialog = within(screen.getByRole('dialog'));
   await user.click(dialog.getByRole('button', { name: 'Guardar' }));
-  expect(await dialog.findByRole('alert')).toBeTruthy();
+  expect(await dialog.findByText(/El nombre es obligatorio/)).toBeTruthy();
   expect(fetchMock.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(0);
   await user.type(dialog.getByLabelText(/Nombre/), '   ');
   await user.click(dialog.getByRole('button', { name: 'Guardar' }));
@@ -45,7 +45,50 @@ test('creates the first category, prevents duplicate submits and enables it in t
   await user.click(screen.getByRole('button', { name: 'Agregar libro' }));
   await user.click(within(screen.getByRole('dialog')).getByRole('combobox', { name: /Categoría/ }));
   await user.click(screen.getByRole('option', { name: 'Historia' }));
-  expect(within(screen.getByRole('dialog')).getByRole('combobox', { name: /Categoría/ }).textContent).toBe('Historia');
+  expect(within(screen.getByRole('dialog')).getByText('Historia')).toBeTruthy();
+});
+
+test('adds a category alongside existing ones without losing the book draft after failure or cancellation', async () => {
+  const post = vi.fn();
+  vi.stubGlobal('fetch', vi.fn(async (url, options) => {
+    if (options.method === 'POST' && url.endsWith('/categories')) {
+      return JSON.parse(options.body).nombre === 'Historia'
+        ? response({ mensaje: 'La categoría ya existe.' }, false)
+        : response({ categoria: { _id: 'travel', nombre: 'Viajes' } });
+    }
+    if (options.method === 'POST') post(JSON.parse(options.body));
+    return response(url.endsWith('/categories') ? [{ _id: 'cat', nombre: 'Historia' }] : []);
+  }));
+  const user = userEvent.setup();
+  panel();
+  const add = screen.getByRole('button', { name: 'Agregar libro' });
+  await waitFor(() => expect(add.disabled).toBe(false));
+  await user.click(add);
+  const book = within(screen.getByRole('dialog'));
+  await user.click(book.getByRole('combobox', { name: 'Categorías' }));
+  await user.click(screen.getByRole('option', { name: 'Historia' }));
+  await user.type(book.getByLabelText(/Título del Libro/), 'Borrador');
+  await user.type(book.getByLabelText(/Autor/), 'Ana');
+  await user.type(book.getByLabelText(/Precio/), '15');
+  await user.clear(book.getByLabelText(/Stock/));
+  await user.type(book.getByLabelText(/Stock/), '6');
+  const open = async () => user.click(await book.findByRole('button', { name: '+ Nueva categoría' }));
+  await open();
+  const category = () => within(screen.getByRole('dialog', { name: 'Crear categoría' }));
+  await user.type(category().getByLabelText(/Nombre/), 'Historia');
+  await user.click(category().getByRole('button', { name: 'Guardar' }));
+  expect(await category().findByText('La categoría ya existe.')).toBeTruthy();
+  await user.click(category().getByRole('button', { name: 'Cancelar' }));
+  expect(book.getByLabelText(/Título del Libro/).value).toBe('Borrador');
+  await open();
+  await user.type(category().getByLabelText(/Nombre/), 'Viajes');
+  await user.click(category().getByRole('button', { name: 'Guardar' }));
+  expect(await book.findByText('Viajes')).toBeTruthy();
+  expect(book.getByText('Historia')).toBeTruthy();
+  await user.click(await book.findByRole('button', { name: 'Agregar' }));
+  expect(post).toHaveBeenCalledWith(expect.objectContaining({
+    titulo: 'Borrador', autor: 'Ana', precio: 15, stock: 6, categoria: ['cat', 'travel'],
+  }));
 });
 
 test('category load failure offers retry without claiming the list is empty', async () => {

@@ -2,6 +2,19 @@
 
 Para el recorrido del cliente, consulta [Comprar y consultar pedidos](MANUAL-USUARIO.md#comprar-y-consultar-pedidos).
 
+## Atribución histórica de ventas
+
+Cada artículo de un pedido nuevo conserva el vendedor leído del catálogo
+al confirmar. Los reportes históricos usan ese dato y mantienen el título
+y las unidades guardados aunque el libro cambie o se elimine. En pedidos
+mixtos, cada vendedor consulta solo sus artículos. Si el libro no tiene
+propietario al confirmar, se registra un vendedor nulo.
+
+Para artículos antiguos que carecen del campo de vendedor, los reportes usan
+el propietario registrado en el libro asociado si sigue en el catálogo. Si
+el libro desapareció o carece de propietario verificable, sus unidades quedan
+sin atribuir. Los reportes de inventario usan el catálogo actual.
+
 ## Alcance y entorno
 
 El checkout registra pedidos sin pasarela ni cargos. El navegador valida el
@@ -9,6 +22,18 @@ formato de los campos de tarjeta. No consulta a un banco ni envía, guarda o
 registra esos campos. Los pedidos por SPEI y efectivo quedan pendientes de pago
 y la interfaz muestra el folio en lugar de la referencia interna. Los pedidos
 históricos conservan sus datos. La aplicación funciona sin credenciales de PayPal.
+
+Confirmar con tarjeta descuenta las unidades en la misma transacción que
+guarda el pedido y vacía el carrito. SPEI y efectivo pendientes no reservan
+existencias. Una clave repetida devuelve el mismo pedido. Si se agota algún
+libro, se revierte la operación completa y el carrito se conserva.
+
+Para comprobarlo, prepara un libro habilitado con 5 unidades. Compra 2 con
+tarjeta y comprueba 3 en el inventario del vendedor. Compra las 3 restantes
+y comprueba **Agotado** en el catálogo y la ficha. Repón unidades con el libro
+desactivado y comprueba que aparece **No disponible** hasta habilitarlo. Con
+dos cuentas y una última unidad en ambos carritos, confirma simultáneamente
+y comprueba que solo se registra un pedido y que el otro carrito se conserva.
 
 Para la prueba manual usa una base local desechable con un replica set
 `rs0` activo. Configura las variables en una terminal de PowerShell, desde

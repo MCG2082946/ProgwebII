@@ -3,11 +3,11 @@ const mongoose = require('mongoose');
 const bookSchema = new mongoose.Schema({
   titulo: { type: String, required: true },
   autor: { type: String, required: true },
-  // Aquí enlazamos la categoría usando ObjectId para relacionarla con Category.js
-  categoria: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Category', 
-    required: true 
+  descripcion: { type: String },
+  categoria: {
+    // Mongoose también hidrata las referencias escalares de los libros anteriores.
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Category' }],
+    validate: (ids) => ids.length > 0 && ids.every(Boolean) && new Set(ids.map(String)).size === ids.length,
   },
   tipoTapa: { type: String, enum: ['dura', 'blanda'], default: 'blanda' },
   precio: { type: Number, required: true, min: 0, validate: Number.isFinite },

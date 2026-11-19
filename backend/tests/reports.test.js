@@ -61,18 +61,19 @@ beforeEach(() => {
   mock.method(User, 'findById', (id) => ({ select: async () => roles[id] && { _id: id, rol: roles[id] } }));
   mock.method(Book, 'find', ({ id_vendedor }) => ({
     select() { return this; },
-    populate() { return this; },
-    lean: async () => books.filter((book) => book.id_vendedor === id_vendedor),
+    populate: async () => books.filter((book) => book.id_vendedor === id_vendedor),
   }));
   mock.method(Order, 'find', (filter) => ({
     select(fields) {
-      assert.equal(fields, 'estado detalles.id_libro detalles.titulo detalles.cantidad -_id');
+      assert.equal(fields, 'estado detalles.id_libro detalles.id_vendedor detalles.titulo detalles.cantidad -_id');
       return this;
     },
     sort() { return this; },
     lean: async () => orders.filter((entry) => entry.createdAt >= filter.createdAt.$gte &&
       entry.createdAt < filter.createdAt.$lt && filter.estado.$in.includes(entry.estado) &&
-      entry.detalles.some((item) => filter['detalles.id_libro'].$in.includes(item.id_libro)))
+      entry.detalles.some((item) => filter.detalles.$elemMatch.$or.some((condition) => condition.id_libro
+        ? !Object.hasOwn(item, 'id_vendedor') && condition.id_libro.$in.includes(item.id_libro)
+        : item.id_vendedor === condition.id_vendedor)))
       .sort((a, b) => b.createdAt - a.createdAt),
   }));
 });
@@ -100,6 +101,23 @@ test('stock includes zero and the threshold; inventory distinguishes titles from
   ]);
 });
 
+test('a shared book contributes to each category without repeating its low-stock row or order units', async () => {
+  const original = books.find((book) => book._id === 'a');
+  const second = { _id: 'viajes', nombre: 'Viajes' };
+  Book.find.mock.mockImplementation(() => ({
+    select() { return this; },
+    populate: async () => [{ ...original, categoria: [original.categoria, second, second] }],
+  }));
+  const data = await (await request(seller)).json();
+  assert.deepEqual(data.inventory, [
+    { id: 'ficcion', category: 'Ficción', titles: 1, units: 5 },
+    { id: 'viajes', category: 'Viajes', titles: 1, units: 5 },
+  ]);
+  assert.equal(data.lowStock.length, 1);
+  assert.equal(data.orders[0].units, 6);
+  assert.equal(data.ranking[0].units, 6);
+});
+
 test('period and ranking count only the authenticated seller’s lines in orders', async () => {
   const data = await (await request(seller)).json();
   assert.deepEqual(data.orders, [
@@ -120,7 +138,8 @@ test('period and ranking count only the authenticated seller’s lines in orders
 });
 
 test('a one-day period includes its entire UTC day; invalid dates fail before queries', async () => {
-  for (const query of ['', 'desde=2026-02-30&hasta=2026-03-01', 'desde=2026-11-19&hasta=2026-11-18', range + '&desde=2026-11-01']) {
+  for (const query of ['', 'desde=2026-02-30&hasta=2026-03-01', 'desde=2026-11-19&hasta=2026-11-18',
+    range + '&desde=2026-11-01', range + '&id_vendedor=' + other]) {
     assert.equal((await request(seller, query)).status, 400);
   }
   assert.equal(Book.find.mock.callCount(), 0);
@@ -129,14 +148,13 @@ test('a one-day period includes its entire UTC day; invalid dates fail before qu
   assert.equal(ranking[0].units, 6);
 });
 
-test('seller without books receives empty reports and no order query', async () => {
+test('seller without current books does not attribute legacy lines with no surviving book', async () => {
   Book.find.mock.mockImplementation(() => ({
     select() { return this; },
-    populate() { return this; },
-    lean: async () => [],
+    populate: async () => [],
   }));
   assert.deepEqual(await (await request(seller)).json(), {
     lowStockThreshold: 5, lowStock: [], inventory: [], orders: [], ranking: [],
   });
-  assert.equal(Order.find.mock.callCount(), 0);
+  assert.deepEqual(Order.find.mock.calls[0].arguments[0].detalles, { $elemMatch: { $or: [{ id_vendedor: seller }] } });
 });

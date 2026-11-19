@@ -1,7 +1,8 @@
 // Modal de carrito de compras
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import CheckoutDialog from './CheckoutDialog';
+import BookCover from './BookCover';
 import {
   Drawer,
   Box,
@@ -9,7 +10,6 @@ import {
   IconButton,
   Button,
   Card,
-  CardMedia,
   CardContent,
   Divider,
   Alert,
@@ -25,16 +25,32 @@ import {
 } from '@mui/icons-material';
 
 export default function CartDrawer({ open, onClose, cartItems, onUpdateQuantity, onRemoveItem,
-  totalPrice, loading = false, busy = false, error = '', onRetry, authenticated = false, onCheckout, favorites, onFavorite, onViewOrders }) {
+  totalPrice, loading = false, busy = false, error = '', onRetry, onCheckAvailability, authenticated = false, onCheckout, favorites, onFavorite, onViewOrders }) {
   const [summary, setSummary] = useState(false);
+  const validation = useRef(null);
   const canBuy = authenticated && cartItems.length > 0 && cartItems.every((item) => item.available) && !loading && !busy && !error;
   const totalItems = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+
+  function closeCart() {
+    validation.current = null;
+    setSummary(false);
+    onClose();
+  }
+
+  async function openSummary() {
+    const attempt = {};
+    validation.current = attempt;
+    const latest = onCheckAvailability ? await onCheckAvailability() : { items: cartItems };
+    if (validation.current === attempt && latest?.items.length && latest.items.every((item) => item.available)) {
+      setSummary(true);
+    }
+  }
 
   return (
     <Drawer
       anchor="right"
       open={open}
-      onClose={onClose}
+      onClose={closeCart}
       PaperProps={{
         sx: { width: { xs: '100%', sm: 420 }, borderTopLeftRadius: 16, borderBottomLeftRadius: 16 }
       }}
@@ -46,7 +62,7 @@ export default function CartDrawer({ open, onClose, cartItems, onUpdateQuantity,
           <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.1rem' }}>
             Productos seleccionados
           </Typography>
-          <IconButton aria-label="Cerrar carrito" onClick={onClose} sx={{ color: 'white', p: 0.5 }}>
+          <IconButton aria-label="Cerrar carrito" onClick={closeCart} sx={{ color: 'white', p: 0.5 }}>
             <CloseIcon />
           </IconButton>
         </Box>
@@ -65,12 +81,7 @@ export default function CartDrawer({ open, onClose, cartItems, onUpdateQuantity,
           ) : (
             cartItems.map((item) => (
               <Card key={item.id} elevation={0} sx={{ display: 'flex', p: 1.5, border: '1px solid #f1f5f9', borderRadius: 2, backgroundColor: '#fafafa' }}>
-                <CardMedia
-                  component="img"
-                  image={item.cover}
-                  alt={item.title}
-                  sx={{ width: 80, height: 110, objectFit: 'cover', borderRadius: 1 }}
-                />
+                <BookCover src={item.cover} title={item.title} width={80} height={110} />
                 <CardContent sx={{ flex: 1, p: '4px 12px !important', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                   <Box>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.2, color: '#334155', fontSize: '0.85rem' }}>
@@ -153,7 +164,7 @@ export default function CartDrawer({ open, onClose, cartItems, onUpdateQuantity,
               variant="contained"
               size="large"
               disabled={!canBuy}
-              onClick={() => setSummary(true)}
+              onClick={openSummary}
               sx={{
                 backgroundColor: '#2b4c6f',
                 color: 'white',

@@ -27,7 +27,7 @@ function mount(path = '/') {
 const structured = { nombres: 'Ana', primerApellido: 'Perez', segundoApellido: 'Lopez', sinSegundoApellido: false };
 const seller = { ...structured, _id: '123', nombre: 'Ana', email: 'ana@example.com', rol: 'vendedor' };
 function mockSession(usuario = seller) {
-  const fetchMock = vi.fn(async (url) => ({ ok: true, status: 200, json: async () => url.endsWith('/auth/me') ? { usuario } : url.includes('/cart') ? { items: [], total: 0 } : url.endsWith('/categories') ? [{ _id: 'cat', nombre: 'Novela' }] : [{ _id: 'book', titulo: 'Libro API', autor: 'Autor', precio: 10, tipoTapa: 'blanda', categoria: 'cat' }] }));
+  const fetchMock = vi.fn(async (url) => ({ ok: true, status: 200, json: async () => url.endsWith('/auth/me') ? { usuario } : url.includes('/cart') ? { items: [], total: 0 } : url.endsWith('/categories') ? [{ _id: 'cat', nombre: 'Novela' }] : [{ _id: 'book', titulo: 'Libro API', autor: 'Autor', precio: 10, tipoTapa: 'blanda', categoria: 'cat', stock: 4, disponibilidad: true }] }));
   vi.stubGlobal('fetch', fetchMock);
   localStorage.setItem('token', 'jwt-test');
   return fetchMock;
@@ -46,7 +46,7 @@ test('restaura la sesión y cierra desde el perfil sin recargar, limpiando el ca
   const user = userEvent.setup();
   mount();
   await screen.findByRole('button', { name: 'Mi cuenta' });
-  await user.click((await screen.findAllByRole('button', { name: 'Añadir a compra' }))[0]);
+  await user.click((await screen.findAllByRole('button', { name: 'Añadir al carrito' }))[0]);
   await user.click(screen.getByRole('button', { name: 'Mi cuenta' }));
   await user.click(screen.getByRole('button', { name: 'Cerrar sesión' }));
   await screen.findByRole('button', { name: 'Iniciar sesión' });
@@ -124,6 +124,9 @@ for (const path of ['/', '/vendedor']) {
     await user.click(screen.getByRole('button', { name: 'Cerrar perfil' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     if (path === '/') {
+      expect(screen.queryByText('Sesión iniciada como Vendedor')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Ir al panel del vendedor' })).toBeNull();
+      await user.click(screen.getByRole('button', { name: 'Mi cuenta' }));
       await user.click(screen.getByRole('button', { name: 'Ir al panel del vendedor' }));
       await screen.findByText('Ana Editada Perez Lopez');
     } else {

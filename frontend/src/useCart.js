@@ -26,7 +26,7 @@ export default function useCart(user) {
       if (!session.active || scope.current !== session) return false;
       session.needsReload = false;
       setState({ identity: session.identity, ...data, loading: false, busy: false, error: '' });
-      return true;
+      return reading ? data : true;
     } catch (error) {
       session.needsReload = true;
       if (session.active && scope.current === session) setState((current) => ({ ...current, error: error.message,
@@ -77,7 +77,16 @@ export default function useCart(user) {
     } catch (error) {
       if (session.active && scope.current === session) {
         session.needsReload = true;
-        setState((current) => ({ ...current, error: error.message }));
+        let updated;
+        if (error.status === 409) {
+          try {
+            updated = cartView(await apiRequest('/cart', { auth: true }));
+          } catch { /* Si falla la consulta, conserva lo que ya mostraba el carrito. */ }
+        }
+        if (session.active && scope.current === session) {
+          session.needsReload = !updated;
+          setState((current) => ({ ...current, ...updated, error: updated ? '' : error.message }));
+        }
       }
       throw error;
     } finally {
