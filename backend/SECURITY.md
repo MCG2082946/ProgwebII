@@ -19,9 +19,9 @@ El contrato de usuario es `{ id, nombre, email, rol }`; los roles son `cliente`,
 1. La persona se registra normalmente: siempre obtiene una cuenta de cliente.
 2. Un administrador existente verifica la solicitud e identidad por un canal
    de confianza y obtiene el identificador de la cuenta aprobada.
-3. Desde una herramienta HTTP privada envía `PATCH /api/auth/usuarios/:id/vendedor`
-   con su propio token en `Authorization: Bearer <token>`. No requiere cuerpo.
-   Nunca pegar tokens en documentación, URLs, historial de terminal o Git.
+3. En **Panel de administración → Habilitar vendedores**, busca el correo
+   exacto y confirma la cuenta. El panel llama a
+   `PATCH /api/auth/usuarios/:id/vendedor` con la sesión del administrador.
 4. El endpoint solo transforma clientes en vendedores. No crea administradores.
    La persona habilitada vuelve a iniciar sesión o recarga para actualizar su perfil.
 
@@ -83,3 +83,28 @@ con HTTPS, política CORS específica y revisión del almacenamiento del token.
 Excluir `.env` no elimina copias del historial. Si hubo secretos reales
 versionados, el responsable debe rotarlos antes de desplegar. No reescribir
 el historial compartido sin coordinación.
+
+## Bitácora del backend
+
+Al ejecutar `npm.cmd start` (o `npm start`) desde `backend/`, se genera
+`backend/logs/backend.log`. La bitácora registra el inicio y el resultado
+del arranque del servidor, el registro de pedidos y la habilitación de
+vendedores, además de los errores internos de HTTP. Cada línea es un
+objeto JSON con fecha UTC y evento. Las operaciones HTTP incluyen un ID
+aleatorio de correlación y, al terminar, su estado HTTP si está disponible.
+
+No se registran correos, credenciales, datos de tarjeta, cuerpos de las
+peticiones, rutas ingresadas por usuarios ni mensajes internos de errores.
+El archivo se ignora en Git. Si no se puede escribir, se avisa en la
+consola sin interrumpir la operación de la tienda.
+
+Para verificarlo, registra un pedido en la base de pruebas y abre el
+archivo desde `backend/` en PowerShell:
+
+```powershell
+Get-Content .\logs\backend.log -Tail 15
+```
+
+Busca las entradas `compra` de `inicio` y `fin` con el mismo valor de
+`operacion`. La segunda incluye el resultado. Las pruebas automatizadas
+escriben solo en un directorio temporal, no en la bitácora de la aplicación.

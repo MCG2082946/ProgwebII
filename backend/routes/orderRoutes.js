@@ -8,6 +8,7 @@ const { view } = require('./cartRoutes');
 const { authenticate } = require('../middleware/auth');
 const { bodyObject } = require('../middleware/validation');
 const { httpError } = require('../middleware/errors');
+const { trackOperation } = require('../services/eventLog');
 const methods = {
   tarjeta: { metodo_pago: 'Tarjeta de crédito o débito', estado: 'pago_aprobado_demo' },
   spei: { metodo_pago: 'Transferencia SPEI', estado: 'pendiente_pago' },
@@ -17,7 +18,7 @@ router.use(authenticate);
 router.get('/', async (req, res) => {
   res.json(await Order.find({ id_usuario: req.user._id }).sort({ createdAt: -1 }).lean());
 });
-router.post('/', bodyObject, async (req, res) => {
+router.post('/', trackOperation('compra'), bodyObject, async (req, res) => {
   if (Object.keys(req.body).some((key) => !['clave_compra', 'metodo_pago'].includes(key)) ||
       typeof req.body.clave_compra !== 'string' ||
       !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(req.body.clave_compra) ||

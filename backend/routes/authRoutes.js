@@ -4,6 +4,7 @@ const User = require('../models/User');
 const { authenticate, authorize } = require('../middleware/auth');
 const { bodyObject, objectId, cleanEmail, emailMatch } = require('../middleware/validation');
 const { httpError } = require('../middleware/errors');
+const { trackOperation } = require('../services/eventLog');
 
 const { nameFields, validateName, requireName } = require('../middleware/profileName');
 const { selection, publicUser, session } = require('../services/session');
@@ -90,7 +91,8 @@ router.post('/usuarios/buscar', authenticate, authorize('administrador'), bodyOb
   res.set('Cache-Control', 'no-store').json({ usuario: matches.length ? accountForPromotion(matches[0]) : null });
 });
 
-router.patch('/usuarios/:id/vendedor', authenticate, authorize('administrador'), async (req, res) => {
+router.patch('/usuarios/:id/vendedor', authenticate, authorize('administrador'),
+  trackOperation('vendedor.habilitacion'), async (req, res) => {
   if (!objectId(req.params.id)) throw httpError(400, 'Identificador inválido.');
   if (req.body !== undefined && (!req.body || Array.isArray(req.body) || typeof req.body !== 'object' || Object.keys(req.body).length)) {
     throw httpError(400, 'Esta ruta solo habilita vendedores.');
