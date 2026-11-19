@@ -12,7 +12,6 @@ import {
   Avatar,
   Paper,
   Card,
-  CardMedia,
   CardContent,
   Alert,
   Grid,
@@ -34,6 +33,7 @@ import {
 } from '@mui/icons-material';
 
 import ProfileNameFields from './ProfileNameFields';
+import BookCover from './BookCover';
 import { nameFields, validateName } from '../profileName';
 import { apiRequest } from '../api';
 import { mxn, orderStatus } from '../paymentDemo';
@@ -43,7 +43,7 @@ const profileDraft = (user) => ({
   email: user?.email || '',
 });
 
-export default function UserProfileModal({ open, onClose, user, onUpdateUser, onLogout, onGoToSellerPanel, wishlist = [],
+export default function UserProfileModal({ open, onClose, user, onUpdateUser, onLogout, onGoToSellerPanel, onGoToAdminPanel, wishlist = [],
   favoritesLoading = false, favoritesBusy = false, favoritesError = '', onRetryFavorites, onRemoveFavorite, initialTab = 0 }) {
   const [tabIndex, setTabIndex] = useState(0);
   const [orders, setOrders] = useState([]);
@@ -287,13 +287,7 @@ export default function UserProfileModal({ open, onClose, user, onUpdateUser, on
                           height: 22
                         }}
                       />
-                      <CardMedia
-                        component="img"
-                        height="140"
-                        image={book.cover}
-                        alt={book.title}
-                        sx={{ objectFit: 'cover' }}
-                      />
+                      <BookCover src={book.cover} title={book.title} height={140} />
                       <CardContent sx={{ p: 1.5, flexGrow: 1 }}>
                         <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.2, color: '#0f172a', mb: 0.5 }}>
                           {book.title}
@@ -354,6 +348,12 @@ export default function UserProfileModal({ open, onClose, user, onUpdateUser, on
               if (pending.current) return;
               close(); onGoToSellerPanel();
             }}>Ir al panel del vendedor</Button>
+          )}
+          {user.rol === 'administrador' && onGoToAdminPanel && (
+            <Button disabled={saving} variant="outlined" onClick={() => {
+              if (pending.current) return;
+              close(); onGoToAdminPanel();
+            }}>Panel de administración</Button>
           )}
           <Button disabled={saving} onClick={onLogout} startIcon={<LogoutIcon />} color="error"
             variant="outlined" sx={{ textTransform: 'none', borderRadius: 2 }}>

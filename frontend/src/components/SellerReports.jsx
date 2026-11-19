@@ -84,7 +84,7 @@ export default function SellerReports() {
         columns={[[ 'title', 'Título' ], [ 'category', 'Categoría' ], [ 'units', 'Unidades', true ]]}
         rows={result.lowStock} empty="No hay libros con bajo stock." />
       <ReportTable id="report-inventory" title="Inventario por categoría"
-        description="Títulos cuenta los libros distintos. Ejemplares suma sus unidades en stock."
+        description="Títulos cuenta los libros distintos y ejemplares suma sus existencias en cada categoría. Las filas pueden compartir títulos y ejemplares."
         columns={[[ 'category', 'Categoría' ], [ 'titles', 'Títulos', true ], [ 'units', 'Ejemplares', true ]]}
         rows={result.inventory} empty="No hay libros en tu inventario." />
       <ReportTable id="report-period" title="Pedidos por periodo"

@@ -1,6 +1,8 @@
 ﻿import { afterEach, expect, test, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
+import Inicio from './Inicio';
 import CartDrawer from './components/CartDrawer';
 import UserProfileModal from './components/UserProfileModal';
 import CheckoutDialog from './components/CheckoutDialog';
@@ -20,6 +22,34 @@ async function fillCard(user) {
   await user.type(screen.getByLabelText('Vencimiento MM/AA'), currentExpiry());
   await user.type(screen.getByLabelText('Código de seguridad'), '012');
 }
+test('after buying the last copy, the catalog refreshes and the detail shows Agotado', async () => {
+  const book = { _id: 'book', titulo: 'Último ejemplar', autor: 'Autora', precio: 10, stock: 1, disponibilidad: true };
+  const order = { estado: 'pago_aprobado_demo', folio: 'LIB-7K4M2P', total: 10, metodo_pago: 'Tarjeta de crédito o débito' };
+  const fetchMock = vi.fn(async (url, options) => {
+    if (url.endsWith('/orders') && options.method === 'POST') {
+      book.stock = 0;
+      return { ok: true, json: async () => order };
+    }
+    const data = url.endsWith('/books') ? [{ ...book }] : url.endsWith('/cart')
+      ? { items: book.stock ? [{ id_libro: book._id, libro: book, cantidad: 1, disponible: true, subtotal: 10 }] : [], total: book.stock * 10 }
+      : [];
+    return { ok: true, json: async () => data };
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  const user = userEvent.setup();
+  render(<MemoryRouter><Inicio user={{ id: 'buyer', rol: 'cliente' }} /></MemoryRouter>);
+  await screen.findAllByRole('button', { name: 'Añadir al carrito' });
+  await user.click(screen.getByRole('button', { name: 'Carrito' }));
+  await user.click(await screen.findByRole('button', { name: 'Realizar Compra' }));
+  await fillCard(user);
+  await user.click(screen.getByRole('button', { name: 'Confirmar pedido' }));
+  await user.click(await screen.findByRole('button', { name: 'Ver mis pedidos' }));
+  await user.click(await screen.findByRole('button', { name: 'Cerrar perfil' }));
+  expect((await screen.findAllByRole('button', { name: 'Agotado' }))[0].disabled).toBe(true);
+  await user.click(screen.getAllByText('Último ejemplar')[0]);
+  expect(await screen.findByText('Agotado', { selector: 'dd' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Añadir al carrito' }).disabled).toBe(true);
+}, 10000);
 test('manual entry and double click send one confirmation showing the order folio', async () => {
   const user = userEvent.setup(); let finish;
   const checkout = vi.fn(() => new Promise((resolve) => { finish = resolve; }));

@@ -12,4 +12,11 @@ function text(value, max = 200) {
 function objectId(value) {
   return typeof value === 'string' && mongoose.isObjectIdOrHexString(value);
 }
-module.exports = { bodyObject, text, objectId };
+function cleanEmail(value) {
+  return text(value, 254) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()) ? value.trim().toLowerCase() : '';
+}
+function emailMatch(email) {
+  const literal = email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return { $regex: '^' + literal + '$', $options: 'i' };
+}
+module.exports = { bodyObject, text, objectId, cleanEmail, emailMatch };

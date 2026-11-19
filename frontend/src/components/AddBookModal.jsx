@@ -51,8 +51,7 @@ export default function AddBookModal({ open, bookToEdit, onClose, onSave }) {
     e.preventDefault();
     onSave({
       ...formData,
-      price: parseFloat(formData.price) || 0,
-      cover: formData.cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400'
+      price: parseFloat(formData.price) || 0
     });
   };
 

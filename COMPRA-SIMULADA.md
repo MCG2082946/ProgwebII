@@ -13,9 +13,9 @@ sobrescribir cambios concurrentes. La clave tiene un índice único por cuenta;
 los reintentos devuelven el pedido existente. El navegador conserva una clave
 pendiente por cuenta en sessionStorage y bloquea la confirmación simultánea.
 
-No se descuenta stock: las reglas anteriores solo verificaban disponibilidad y
-existencias al modificar el carrito. Esta tarea conserva esa política; decidir
-si una simulación debe consumir inventario queda pendiente de producto.
+El flujo original de esta guía salió sin descuento de stock. Para el checkout
+actual, consulta la [guía de verificación](CHECKOUT-VERIFICACION.md), que cubre
+el descuento al confirmar con tarjeta y los pedidos pendientes.
 No se solicitan ni guardan datos bancarios y no hay pasarela.
 
 ## Pruebas automatizadas en PowerShell
@@ -49,7 +49,8 @@ reintentos e historial por cuenta. La transacción real requiere verificación m
    estado, método, detalles y total. Recargar y volver a iniciar sesión: debe
    seguir visible una sola vez.
 5. Cambiar título/precio del libro desde el panel del vendedor de pruebas. El
-   historial debe conservar los valores de compra y el stock no debe descontarse.
+   historial debe conservar los valores de compra. La edición del título o
+   precio no cambia las existencias restantes.
 6. Agregar otro libro y reducir su stock o deshabilitarlo desde el catálogo antes
    de confirmar. La compra debe fallar sin generar pedido ni vaciar el carrito.
    Cerrar el resumen y usar Reintentar para actualizar el carrito; ajustar o

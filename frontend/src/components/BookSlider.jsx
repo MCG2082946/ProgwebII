@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight } from '@mui/icons-material';
 import BookCard from './BookCard';
 import AddBookCard from './AddBookCard';
 
-export default function BookSlider({ title, books, isSeller, onSelect, onEdit, onAddToCart, onAdd, favorites, onFavorite }) {
+export default function BookSlider({ title, books, isSeller, onSelect, onEdit, onAddToCart, onAdd, favorites, onFavorite, ownsBook }) {
   const sliderRef = useRef(null);
 
   const handleScroll = (direction) => {
@@ -27,7 +27,7 @@ export default function BookSlider({ title, books, isSeller, onSelect, onEdit, o
           onClick={() => handleScroll('left')}
           sx={{
             position: 'absolute',
-            left: -20,
+            left: { xs: 0, sm: -12 },
             zIndex: 3,
             backgroundColor: '#1e3a5f',
             color: 'white',
@@ -60,9 +60,10 @@ export default function BookSlider({ title, books, isSeller, onSelect, onEdit, o
           )}
 
           {books.map((book) => (
-            <Box key={book.id} sx={{ minWidth: 200, flexShrink: 0 }}>
+            <Box key={book.id} sx={{ width: 200, flexShrink: 0 }}>
               <BookCard
                 book={book}
+                ownPublication={ownsBook?.(book)}
                 isSeller={isSeller}
                 onSelect={onSelect}
                 onEdit={onEdit}
@@ -79,7 +80,7 @@ export default function BookSlider({ title, books, isSeller, onSelect, onEdit, o
           onClick={() => handleScroll('right')}
           sx={{
             position: 'absolute',
-            right: -20,
+            right: { xs: 0, sm: -12 },
             zIndex: 3,
             backgroundColor: '#1e3a5f',
             color: 'white',

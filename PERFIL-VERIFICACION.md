@@ -112,6 +112,54 @@ Usar exclusivamente la base de pruebas con la configuración ya preparada.
 6. Para un cliente ya completado, repetir habilitación como administrador: ahora
    debe permitirla sin alterar el nombre. No realizar migraciones masivas.
 
+## Preparar una cuenta administradora de prueba
+
+Usa una base local desechable y separada, como `progwebii_demo_admin`, con el
+backend apuntando a ella mediante `MONGO_URI` del proceso. Crea desde la tienda
+dos cuentas con correos distintos y contraseñas que elijas para la demo. Una es
+la administradora de prueba y la otra es el comprador que se va a habilitar.
+
+Desde `backend`, en una terminal de PowerShell dedicada a la demo:
+
+```powershell
+$env:MONGO_URI = 'mongodb://127.0.0.1:27017/progwebii_demo_admin'
+$env:JWT_SECRET = node -p "require('node:crypto').randomBytes(48).toString('hex')"
+npm.cmd start
+```
+
+Desde `frontend`, inicia la tienda con `npm.cmd run dev`. Usa el backend local
+para registrar ambas cuentas.
+
+Si todavía no existe un administrador en esa base, una persona con acceso
+autorizado a la base local puede abrir `mongosh` desde PowerShell:
+
+```powershell
+mongosh 'mongodb://127.0.0.1:27017/progwebii_demo_admin'
+```
+
+Comprueba en `mongosh` el nombre de la base y localiza la cuenta que has
+reservado para administrar. Reemplaza el correo ilustrativo por el de esa
+cuenta local:
+
+```javascript
+db.getName()
+const correo = 'administracion-demo@example.invalid'
+db.users.findOne({ email: correo }, { _id: 1, nombre: 1, email: 1, rol: 1 })
+```
+
+Solo si la base es `progwebii_demo_admin` y el registro devuelto es la cuenta
+separada esperada con rol `cliente`, copia su identificador y ejecuta:
+
+```javascript
+db.users.updateOne(
+  { _id: ObjectId('<ID_VERIFICADO>'), email: correo, rol: 'cliente' },
+  { $set: { rol: 'administrador' } }
+)
+```
+
+Comprueba que `matchedCount` y `modifiedCount` sean 1. Usa esa cuenta para
+seguir el [recorrido de demostración](MANUAL-USUARIO.md#demostración-de-habilitación-de-vendedores).
+
 ## Funciones adicionales del vendedor
 
 No se encontró un documento de propuesta del equipo en este repositorio; esta

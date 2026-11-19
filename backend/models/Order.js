@@ -7,6 +7,7 @@ const orderSchema = new mongoose.Schema({
   id_usuario: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   detalles: [{
     id_libro: { type: mongoose.Schema.Types.ObjectId, ref: 'Book' },
+    id_vendedor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     titulo: { type: String, required: true },
     cantidad: { type: Number, required: true, min: 1, validate: Number.isSafeInteger },
     precio_unitario: { type: Number, required: true }

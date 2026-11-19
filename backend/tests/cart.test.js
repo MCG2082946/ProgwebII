@@ -93,6 +93,29 @@ test('two accounts only read and change their own cart, never accept owner or pr
   }
 });
 
+test('a seller cannot add or increase their own book, but can remove it', async () => {
+  const book = books.get(bookId);
+  book.id_vendedor = a;
+  User.findById.mock.mockImplementation((id) => query(() => ({ _id: id, rol: 'vendedor' })));
+  const item = { id_libro: bookId, cantidad: 1 };
+  const denied = await request('POST', '/items', item);
+  assert.equal(denied.status, 409);
+  assert.match((await denied.json()).mensaje, /Libro real/);
+  assert.equal(carts.size, 0);
+  assert.equal((await request('POST', '/items', { ...item, id_vendedor: b })).status, 400);
+  const legacy = { _id: a, id_usuario: a, __v: 0, items: [item], total: book.precio };
+  carts.set(a, clone(legacy));
+  assert.equal((await request('PATCH', '/items/' + bookId, { cantidad: 2 })).status, 409);
+  assert.deepEqual(carts.get(a), legacy);
+  assert.equal(book.stock, 5);
+  const current = await (await request()).json();
+  assert.equal(current.items[0].disponible, false);
+  assert.match(current.items[0].motivo, /Es tu publicación/);
+  assert.equal((await request('DELETE', '/items/' + bookId)).status, 200);
+  assert.deepEqual(carts.get(a).items, []);
+  assert.equal((await request('POST', '/items', item, token(b))).status, 200);
+});
+
 test('requires authentication and validates quantities, stock, availability and book existence', async () => {
   for (const [method, path] of [['GET', ''], ['POST', '/items'], ['PATCH', '/items/' + bookId], ['DELETE', '/items/' + bookId]]) {
     assert.equal((await request(method, path, method === 'GET' ? undefined : { cantidad: 1 }, '')).status, 401);

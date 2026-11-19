@@ -1,10 +1,11 @@
 //Tarjeta individual con vista previa de libro registrado
 
 import React from 'react';
-import { Card, CardMedia, CardContent, Typography, Button, IconButton } from '@mui/material';
+import { Card, CardContent, Typography, Button, IconButton } from '@mui/material';
 import { Add as AddIcon, Edit as EditIcon, Favorite, FavoriteBorder } from '@mui/icons-material';
+import BookCover from './BookCover';
 
-export default function BookCard({ book, isSeller, onSelect, onEdit, onAddToCart, favorite = false, favoritesDisabled = false, onFavorite }) {
+export default function BookCard({ book, isSeller, onSelect, onEdit, onAddToCart, favorite = false, favoritesDisabled = false, onFavorite, ownPublication = false }) {
   return (
     <Card
       elevation={1}
@@ -56,20 +57,9 @@ export default function BookCard({ book, isSeller, onSelect, onEdit, onAddToCart
         </IconButton>
       )}
 
-      <CardMedia
-        component="img"
-        image={book.cover}
-        alt={book.title}
-        sx={{
-          height: 190,
-          width: 'auto',
-          objectFit: 'contain',
-          borderRadius: 1,
-          mb: 1.5,
-        }}
-      />
+      <BookCover src={book.cover} title={book.title} />
 
-      <CardContent sx={{ p: 0, width: '100%', textAlign: 'left', flexGrow: 1 }}>
+      <CardContent sx={{ p: 0, mt: 1.5, width: '100%', textAlign: 'left', flexGrow: 1 }}>
         <Typography variant="caption" color="text.secondary" display="block">
           {book.binding}
         </Typography>
@@ -96,6 +86,7 @@ export default function BookCard({ book, isSeller, onSelect, onEdit, onAddToCart
       <Button
         variant="contained"
         fullWidth
+        disabled={ownPublication || !book.available}
         startIcon={<AddIcon />}
         onClick={(e) => {
           e.stopPropagation();
@@ -110,7 +101,7 @@ export default function BookCard({ book, isSeller, onSelect, onEdit, onAddToCart
           '&:hover': { backgroundColor: '#2b5278' },
         }}
       >
-        Añadir a compra
+        {ownPublication ? 'Es tu publicación' : book.available ? 'Añadir al carrito' : book.availabilityLabel}
       </Button>
     </Card>
   );

@@ -48,6 +48,31 @@ beforeEach(() => {
       mock.method(model, method, () => { throw new Error('Unexpected database operation'); });
     }
   }
+  // Las pruebas de cambios de correo simulan ausencia de una cuenta homónima por defecto.
+  User.exists.mock.mockImplementation(async () => false);
+});
+test('retired provider endpoints are unavailable', async () => {
+  assert.equal((await request('/api/auth/social/providers')).status, 404);
+  assert.equal((await request('/api/auth/social/google/start', 'POST', {})).status, 404);
+  assert.equal((await request('/api/auth/social/facebook/callback')).status, 404);
+});
+
+test('authentication rejects extra fields and registration checks duplicate email case-insensitively', async () => {
+  const data = { ...completeName, email: 'Test@Example.Invalid', password: 'test-password' };
+  assert.equal((await request('/api/auth/registro', 'POST', { ...data, googleId: 'external' })).status, 400);
+  assert.equal((await request('/api/auth/login', 'POST', { email: data.email, password: data.password, rol: 'vendedor' })).status, 400);
+  User.exists.mock.mockImplementation(async ({ email }) => new RegExp(email.$regex, email.$options).test('test@example.invalid'));
+  assert.equal((await request('/api/auth/registro', 'POST', data)).status, 409);
+});
+
+test('book validation rejects fractional cents, unsafe amounts and credentials in cover URLs', async () => {
+  role = 'vendedor';
+  Category.exists.mock.mockImplementation(async () => true);
+  const data = { titulo: 'Libro', autor: 'Autor', categoria: categoryId, precio: 12.5, stock: 0 };
+  for (const changes of [{ precio: 1.005 }, { precio: Number.MAX_SAFE_INTEGER }, { portada_url: 'https://user:pass@example.invalid/cover' }]) {
+    assert.equal((await request('/api/books', 'POST', { ...data, ...changes }, token())).status, 400);
+  }
+  assert.equal(Book.create.mock.callCount(), 0);
 });
 afterEach(() => mock.restoreAll());
 after(async () => {
@@ -138,13 +163,77 @@ test('only administrator can enable a client as seller', async () => {
   role = 'vendedor';
   assert.equal((await request(path, 'PATCH', {}, token())).status, 403);
   role = 'administrador';
-  User.findOne.mock.mockImplementation(async () => ({ _id: userId, ...completeName }));
+  User.findOne.mock.mockImplementation(async () => ({ _id: userId, ...completeName, rol: 'cliente' }));
   User.findOneAndUpdate.mock.mockImplementation(async (filter, update) => {
     assert.equal(filter.rol, 'cliente');
     assert.deepEqual(update, { $set: { rol: 'vendedor' } });
     return { _id: userId, rol: 'vendedor' };
   });
   assert.equal((await request(path, 'PATCH', {}, token())).status, 200);
+});
+
+test('administrator looks up an exact email and enables the existing account once', async () => {
+  const lookup = '/api/auth/usuarios/buscar';
+  const targetId = '999999999999999999999999';
+  const promote = '/api/auth/usuarios/' + targetId + '/vendedor';
+  const target = { _id: targetId, nombre: 'Ana Perez Lopez', email: 'ana@example.invalid', rol: 'cliente',
+    contrasena_hash: 'private', ...completeName };
+  let matches = [target];
+  for (const when of ['cliente', 'vendedor']) {
+    role = when;
+    assert.equal((await request(lookup, 'POST', { email: target.email }, token())).status, 403);
+    assert.equal((await request(promote, 'PATCH', {}, token())).status, 403);
+  }
+  assert.equal((await request(lookup, 'POST', { email: target.email })).status, 401);
+  assert.equal((await request(promote, 'PATCH', {})).status, 401);
+  assert.equal(User.find.mock.callCount(), 0);
+  role = 'administrador';
+  User.find.mock.mockImplementation((filter) => ({
+    select(fields) { assert.ok(!fields.includes('contrasena')); return this; },
+    limit(count) { assert.equal(count, 2); return this; },
+    lean: async () => matches.filter((account) => new RegExp(filter.email.$regex, filter.email.$options).test(account.email)),
+  }));
+  assert.equal((await request(lookup, 'POST', { email: 'ana' }, token())).status, 400);
+  const found = await request(lookup, 'POST', { email: ' ANA@example.invalid ' }, token());
+  const publicAccount = { id: targetId, nombre: target.nombre, email: target.email, rol: 'cliente', nombreIncompleto: false };
+  assert.deepEqual(await found.json(), { usuario: publicAccount });
+  assert.deepEqual(await (await request(lookup, 'POST', { email: 'na@example.invalid' }, token())).json(), { usuario: null });
+  matches = [target, { ...target, email: 'ANA@example.invalid' }];
+  assert.equal((await request(lookup, 'POST', { email: target.email }, token())).status, 409);
+
+  User.findOne.mock.mockImplementation(async ({ _id, email }) => _id === targetId || email === target.email ? target : null);
+  User.findOneAndUpdate.mock.mockImplementation(async (filter, update) => {
+    assert.deepEqual(filter, { _id: targetId, rol: 'cliente', ...completeName });
+    assert.deepEqual(update, { $set: { rol: 'vendedor' } });
+    return Object.assign(target, update.$set);
+  });
+  assert.equal((await request('/api/auth/usuarios/invalido/vendedor', 'PATCH', {}, token())).status, 400);
+  assert.equal((await request('/api/auth/usuarios/' + bookId + '/vendedor', 'PATCH', {}, token())).status, 404);
+  assert.equal((await request(promote, 'PATCH', { rol: 'administrador' }, token())).status, 400);
+  const success = await request(promote, 'PATCH', {}, token());
+  assert.deepEqual(await success.json(), {
+    mensaje: 'Cuenta habilitada como vendedor', usuario: { ...publicAccount, rol: 'vendedor' },
+  });
+  assert.equal((await request(promote, 'PATCH', {}, token())).status, 409);
+  target.contrasena_hash = await bcrypt.hash('test-password', 4);
+  const login = await request('/api/auth/login', 'POST', { email: target.email, password: 'test-password' });
+  assert.equal(login.status, 200);
+  const session = await login.json();
+  assert.equal(session.usuario.id, targetId);
+  assert.equal(session.usuario.rol, 'vendedor');
+  User.findById.mock.mockImplementation((id) => ({ select: async () => id === targetId ? target : { _id: id, rol: 'administrador' } }));
+  Category.exists.mock.mockImplementation(async () => true);
+  Book.create.mock.mockImplementation(async (book) => {
+    assert.equal(book.id_vendedor, targetId);
+    return book;
+  });
+  assert.equal((await request('/api/books', 'POST', {
+    titulo: 'Libro de prueba', autor: 'Ana', categoria: categoryId, stock: 1, precio: 10,
+  }, session.token)).status, 201);
+  target.rol = 'administrador';
+  assert.equal((await request(promote, 'PATCH', {}, token())).status, 409);
+  assert.equal(User.findOneAndUpdate.mock.callCount(), 1);
+  assert.equal(User.create.mock.callCount(), 0);
 });
 test('seller login returns canonical role and wrong password returns 401', async () => {
   const hash = await bcrypt.hash('test-password', 4);
@@ -174,16 +263,80 @@ test('book creation assigns authenticated owner and validates stock/price', asyn
     assert.equal((await request('/api/books', 'POST', { ...body, ...changes }, token())).status, 400);
   }
 });
+test('book creation and editing normalize text while retaining the exact image URL', async () => {
+  role = 'vendedor';
+  Category.exists.mock.mockImplementation(async () => true);
+  Book.create.mock.mockImplementation(async (data) => data);
+  Book.findOneAndUpdate.mock.mockImplementation(async (_filter, update) => update.$set);
+  const cover = 'https://Ejemplo.invalid/MiPortada/FoTo.JPG?Clave=Uno&firma=aBc';
+  const body = { titulo: '  niñez y café ', autor: '  ángela muñoz ', descripcion: '  capítulo uno\n  capítulo dos ',
+    categoria: categoryId, precio: 19.99, stock: 2, portada_url: ' ' + cover + ' ' };
+  for (const [method, route, status] of [['POST', '/api/books', 201], ['PATCH', '/api/books/' + bookId, 200]]) {
+    const res = await request(route, method, body, token());
+    assert.equal(res.status, status);
+    const { libro } = await res.json();
+    assert.equal(libro.titulo, 'NIÑEZ Y CAFÉ');
+    assert.equal(libro.autor, 'ÁNGELA MUÑOZ');
+    assert.equal(libro.descripcion, 'CAPÍTULO UNO\n  CAPÍTULO DOS');
+    assert.equal(libro.portada_url, cover);
+  }
+  const invalid = await request('/api/books', 'POST', { ...body, titulo: ' ', autor: '', stock: 1.2, portada_url: 'sin-url' }, token());
+  assert.equal(invalid.status, 400);
+  assert.deepEqual(Object.keys((await invalid.json()).campos).sort(), ['autor', 'portada_url', 'stock', 'titulo']);
+});
+
+test('category writes normalize accents and reject names already stored with different casing', async () => {
+  role = 'administrador';
+  Category.exists.mock.mockImplementation(async ({ nombre, _id }) => {
+    assert.equal(_id?.$ne, nombre.$regex.includes('HISTORIA') ? categoryId : undefined);
+    return new RegExp(nombre.$regex, nombre.$options).test('Niñez');
+  });
+  Category.create.mock.mockImplementation(async (data) => data);
+  Category.findByIdAndUpdate.mock.mockImplementation(async (_id, update) => update.$set);
+  const duplicate = await request('/api/categories', 'POST', { nombre: '  niñez ' }, token());
+  assert.equal(duplicate.status, 409);
+  assert.ok((await duplicate.json()).campos.nombre);
+  const edit = await request('/api/categories/' + categoryId, 'PATCH', { nombre: ' Historia ', descripcion: ' méxico\nniñez ' }, token());
+  assert.equal(edit.status, 200);
+  assert.deepEqual((await edit.json()).categoria, { nombre: 'HISTORIA', descripcion: 'MÉXICO\nNIÑEZ' });
+});
 test('seller update and delete use an atomic owner filter', async () => {
   role = 'vendedor';
   const check = async (filter) => {
     assert.deepEqual(filter, { _id: bookId, id_vendedor: userId });
     return null;
   };
-  Book.findOneAndUpdate.mock.mockImplementation(check);
+  Book.findOneAndUpdate.mock.mockImplementation(async (filter) => {
+    assert.deepEqual(filter, { _id: bookId, id_vendedor: userId, categoria: { $type: 'objectId' } });
+    return null;
+  });
   Book.findOneAndDelete.mock.mockImplementation(check);
   assert.equal((await request('/api/books/' + bookId, 'PATCH', { precio: 20 }, token())).status, 404);
   assert.equal((await request('/api/books/' + bookId, 'DELETE', undefined, token())).status, 404);
+});
+
+test('books store category lists, retain legacy categories and reject missing references', async () => {
+  role = 'vendedor';
+  const second = 'aaaaaaaaaaaaaaaaaaaaaaaa';
+  const body = { titulo: 'Libro', autor: 'Autor', precio: 20, stock: 0 };
+  const legacy = Book.hydrate({ ...body, categoria: categoryId });
+  assert.deepEqual(legacy.categoria.map(String), [categoryId]);
+  Category.exists.mock.mockImplementation(async ({ _id }) => [categoryId, second].includes(_id));
+  Book.create.mock.mockImplementation(async (data) => data);
+  Book.findOneAndUpdate.mock.mockImplementation(async (filter, update) => {
+    assert.equal(filter.id_vendedor, userId);
+    return update.$set;
+  });
+  const categories = [categoryId, second];
+  const result = await request('/api/books', 'POST', { ...body, categoria: categories }, token());
+  assert.equal(result.status, 201);
+  assert.deepEqual((await result.json()).libro.categoria, [categoryId, second]);
+  const edit = await request('/api/books/' + bookId, 'PATCH', { categoria: categories }, token());
+  assert.equal(edit.status, 200);
+  assert.deepEqual((await edit.json()).libro.categoria, [categoryId, second]);
+  assert.equal((await request('/api/books/' + bookId, 'PATCH', { categoria: [...categories, second.toUpperCase()] }, token())).status, 400);
+  assert.equal((await request('/api/books/' + bookId, 'PATCH', { categoria: [] }, token())).status, 400);
+  assert.equal((await request('/api/books', 'POST', { ...body, categoria: [second, bookId] }, token())).status, 404);
 });
 
 test('own inventory requires seller authentication and queries only its owner', async () => {
@@ -201,13 +354,14 @@ test('own inventory requires seller authentication and queries only its owner', 
 
 test('category CRUD preserves creation and admin management permissions', async () => {
   role = 'vendedor';
+  Category.exists.mock.mockImplementation(async () => false);
   Category.create.mock.mockImplementation(async (data) => ({ _id: categoryId, ...data }));
   assert.equal((await request('/api/categories', 'POST', { nombre: 'Novela' }, token())).status, 201);
   role = 'administrador';
   Category.findByIdAndUpdate.mock.mockImplementation(async (id, update) => ({ _id: id, ...update.$set }));
   const response = await request('/api/categories/' + categoryId, 'PATCH', { nombre: 'Historia' }, token());
   assert.equal(response.status, 200);
-  assert.equal((await response.json()).categoria.nombre, 'Historia');
+  assert.equal((await response.json()).categoria.nombre, 'HISTORIA');
   Book.exists.mock.mockImplementation(async () => false);
   Category.findByIdAndDelete.mock.mockImplementation(async () => ({ _id: categoryId }));
   assert.equal((await request('/api/categories/' + categoryId, 'DELETE', undefined, token())).status, 204);

@@ -14,11 +14,18 @@ export async function apiRequest(path, { auth = false, body, ...options } = {}) 
 }
 
 export function bookView(book) {
+  const categories = [book.categoria].flat().filter(Boolean);
+  const available = book.disponibilidad === true && book.stock > 0;
   return {
     ...book, id: book._id, title: book.titulo, author: book.autor,
     price: book.precio, cover: book.portada_url || undefined,
-    categoryId: book.categoria?._id || book.categoria || '',
-    binding: book.tipoTapa === 'dura' ? 'Tapa dura' : 'Tapa blanda',
+    categoryIds: [...new Set(categories.map((category) => category._id || category))],
+    categories: categories.map((category) => category.nombre).filter(Boolean),
+    binding: { dura: 'Tapa dura', blanda: 'Tapa blanda' }[book.tipoTapa],
+    isbn: typeof book.isbn === 'string' ? book.isbn.trim() : undefined,
+    description: typeof book.descripcion === 'string' ? book.descripcion.trim() : undefined,
+    available,
+    availabilityLabel: book.stock === 0 ? 'Agotado' : available ? 'Disponible' : 'No disponible',
   };
 }
 

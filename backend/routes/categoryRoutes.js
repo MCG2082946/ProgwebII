@@ -16,34 +16,56 @@ function categoryData(body, partial = false) {
   }
   const data = {};
   if (!partial || 'nombre' in body) {
-    if (!text(body.nombre)) throw httpError(400, 'El nombre de categoría es obligatorio y debe ser válido.');
-    data.nombre = body.nombre.trim();
+    if (typeof body.nombre !== 'string' || !text(body.nombre.trim())) {
+      const message = 'El nombre de categoría es obligatorio y debe ser válido.';
+      throw Object.assign(httpError(400, message), { campos: { nombre: message } });
+    }
+    data.nombre = body.nombre.trim().toUpperCase();
   }
   if ('descripcion' in body) {
-    if (typeof body.descripcion !== 'string' || body.descripcion.length > 2000) throw httpError(400, 'Descripción inválida.');
-    data.descripcion = body.descripcion.trim();
+    if (typeof body.descripcion !== 'string' || body.descripcion.trim().length > 2000) {
+      const message = 'Descripción inválida.';
+      throw Object.assign(httpError(400, message), { campos: { descripcion: message } });
+    }
+    data.descripcion = body.descripcion.trim().toUpperCase();
   }
   if (!Object.keys(data).length) throw httpError(400, 'No hay cambios para guardar.');
   return data;
+}
+async function saveCategory(data, persist, id) {
+  const duplicate = () => Object.assign(httpError(409, 'La categoría ya existe.'), { campos: { nombre: 'La categoría ya existe.' } });
+  if (data.nombre) {
+    const literal = data.nombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (await Category.exists({ nombre: { $regex: '^' + literal + '$', $options: 'i' }, ...(id ? { _id: { $ne: id } } : {}) })) {
+      throw duplicate();
+    }
+  }
+  try { return await persist(data); }
+  catch (error) {
+    if (error.code === 11000) throw duplicate();
+    throw error;
+  }
 }
 function categoryId(req) {
   if (!objectId(req.params.id)) throw httpError(400, 'Identificador de categoría inválido.');
   return req.params.id;
 }
 router.post('/', bodyObject, async (req, res) => {
-  const categoria = await Category.create(categoryData(req.body));
+  const categoria = await saveCategory(categoryData(req.body), (data) => Category.create(data));
   res.status(201).json({ mensaje: 'Categoría creada exitosamente.', categoria });
 });
 // Las categorías son compartidas: solo un administrador puede alterarlas o borrarlas.
 router.patch('/:id', authorize('administrador'), bodyObject, async (req, res) => {
   const id = categoryId(req);
-  const categoria = await Category.findByIdAndUpdate(id, { $set: categoryData(req.body, true) }, { new: true, runValidators: true });
+  const categoria = await saveCategory(categoryData(req.body, true),
+    (data) => Category.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true }), id);
   if (!categoria) throw httpError(404, 'La categoría no existe.');
   res.json({ mensaje: 'Categoría actualizada.', categoria });
 });
 router.put('/:id', authorize('administrador'), bodyObject, async (req, res) => {
   const id = categoryId(req);
-  const categoria = await Category.findByIdAndUpdate(id, { $set: categoryData(req.body) }, { new: true, runValidators: true });
+  const categoria = await saveCategory(categoryData(req.body),
+    (data) => Category.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true }), id);
   if (!categoria) throw httpError(404, 'La categoría no existe.');
   res.json({ mensaje: 'Categoría actualizada.', categoria });
 });

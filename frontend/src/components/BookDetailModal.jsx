@@ -1,163 +1,51 @@
-//Ventana emergente que muestra la informacion completa del libro
+﻿import { Alert, Box, Button, Dialog, DialogContent, DialogTitle, IconButton, Stack, Typography } from '@mui/material';
+import { Close, Favorite, FavoriteBorder, ShoppingCart } from '@mui/icons-material';
+import { mxn } from '../paymentDemo';
+import BookCover from './BookCover';
 
-import React from 'react';
-import {
-  Alert,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  Typography,
-  Box,
-  IconButton,
-  Grid,
-  Paper,
-  Button
-} from '@mui/material';
-import {
-  Info as InfoIcon,
-  Close as CloseIcon,
-  Star as StarIcon,
-  StarBorder as StarBorderIcon,
-  ShoppingCart as ShoppingCartIcon
-} from '@mui/icons-material';
-
-export default function BookDetailModal({ open, book, onClose, onAddToCart, favorite = false, favoritesDisabled = false, onFavorite,
-  favoritesError = '', onRetryFavorites }) {
+export default function BookDetailModal({ open, book, onClose, onAddToCart, favorite = false, favoritesDisabled = false, ownPublication = false,
+  onFavorite, favoritesError = '', onRetryFavorites }) {
   if (!book) return null;
-
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="md"
-      fullWidth
-      PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden' } }}
-    >
-      {/* Encabezado */}
-      <DialogTitle
-        sx={{
-          backgroundColor: '#4a79a0',
-          color: 'white',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          py: 1.5,
-          px: 2,
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <InfoIcon />
-          <Typography variant="h6" sx={{ fontStyle: 'italic', fontWeight: 'bold' }}>
-            Informacion Libro
-          </Typography>
-        </Box>
-        <IconButton aria-label="Cerrar detalle" onClick={onClose} sx={{ color: 'white' }}>
-          <CloseIcon />
-        </IconButton>
-      </DialogTitle>
-
-      {/* Cuerpo */}
-      <DialogContent sx={{ p: 4, backgroundColor: '#fcfdfd' }}>
-        {favoritesError && <Alert severity="error" action={<Button onClick={onRetryFavorites}>Reintentar favoritos</Button>}>{favoritesError}</Alert>}
-        <Grid container spacing={4} alignItems="center">
-          <Grid item xs={12} md={5}>
-            <Paper
-              elevation={1}
-              sx={{
-                p: 2,
-                borderRadius: 3,
-                border: '1px solid #e0e0e0',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-            >
-              <Box
-                component="img"
-                src={book.cover}
-                alt={book.title}
-                sx={{
-                  width: '100%',
-                  maxHeight: 320,
-                  objectFit: 'contain',
-                  borderRadius: 1,
-                }}
-              />
-            </Paper>
-          </Grid>
-
-          <Grid item xs={12} md={7}>
-            <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1a365d', mb: 1 }}>
-              {book.title}
-            </Typography>
-
-            <Typography variant="subtitle1" sx={{ fontStyle: 'italic', color: '#4a79a0', mb: 2 }}>
-              {book.author}
-            </Typography>
-
-            <Paper
-              variant="outlined"
-              sx={{
-                p: 2,
-                borderRadius: 3,
-                borderColor: '#d0d7de',
-                backgroundColor: '#ffffff',
-                mb: 3,
-              }}
-            >
-              <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                {book.synopsis}
-              </Typography>
-            </Paper>
-
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Button
-                variant="contained"
-                sx={{
-                  backgroundColor: '#4a79a0',
-                  borderRadius: '20px',
-                  px: 3,
-                  py: 1,
-                  fontWeight: 'bold',
-                  fontSize: '1rem',
-                  textTransform: 'none',
-                  '&:hover': { backgroundColor: '#2b5278' },
-                }}
-              >
-                $ {book.price ? book.price.toFixed(2) : '0.00'}
-              </Button>
-
-              <IconButton
-                aria-label={(favorite ? 'Quitar de favoritos ' : 'Guardar en favoritos ') + book.title}
-                aria-pressed={favorite}
-                disabled={favoritesDisabled || !onFavorite}
-                onClick={() => onFavorite(book)}
-                sx={{
-                  backgroundColor: '#3b6c93',
-                  color: 'white',
-                  '&:hover': { backgroundColor: '#2b5278' },
-                  p: 1.2,
-                }}
-              >
-                {favorite ? <StarIcon /> : <StarBorderIcon />}
-              </IconButton>
-
-              <IconButton
-                onClick={() => onAddToCart(book)}
-                sx={{
-                  backgroundColor: '#ffffff',
-                  color: '#1a365d',
-                  border: '1px solid #d0d7de',
-                  '&:hover': { backgroundColor: '#f0f0f0' },
-                  p: 1.2,
-                }}
-              >
-                <ShoppingCartIcon />
-              </IconButton>
-            </Box>
-          </Grid>
-        </Grid>
-      </DialogContent>
-    </Dialog>
-  );
+  const details = [
+    ['Categorías', book.categories?.join(', ')],
+    ['Encuadernación', book.binding],
+    ['ISBN', book.isbn],
+    ['Disponibilidad', book.availabilityLabel],
+  ].filter(([, value]) => value);
+  return <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth aria-labelledby="book-detail-title">
+    <DialogTitle id="book-detail-title" sx={{ bgcolor: '#1e3a5f', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      Ficha del libro
+      <IconButton aria-label="Cerrar detalle" onClick={onClose} sx={{ color: 'white' }}><Close /></IconButton>
+    </DialogTitle>
+    <DialogContent sx={{ py: 3 }}>
+      {favoritesError && <Alert severity="error" action={<Button onClick={onRetryFavorites}>Reintentar favoritos</Button>}>{favoritesError}</Alert>}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'minmax(0, 2fr) minmax(0, 3fr)' }, gap: 3, pt: 2 }}>
+        <BookCover src={book.cover} title={book.title} height={280} />
+        <Stack spacing={1.5} sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+          <Box>
+            <Typography variant="h5" component="h2" sx={{ fontWeight: 700, color: '#1e3a5f' }}>{book.title}</Typography>
+            <Typography color="text.secondary">{book.author}</Typography>
+          </Box>
+          <Typography variant="h6">{mxn.format(book.price)}</Typography>
+          {details.length > 0 && <Box component="dl" sx={{ m: 0, display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', gap: 1 }}>
+            {details.map(([label, value]) => <Box key={label} sx={{ display: 'contents' }}>
+              <Typography component="dt" variant="body2" sx={{ fontWeight: 700 }}>{label}</Typography>
+              <Typography component="dd" variant="body2" sx={{ m: 0 }}>{value}</Typography>
+            </Box>)}
+          </Box>}
+          {book.description && <Typography variant="body2" sx={{ whiteSpace: 'pre-line' }}>{book.description}</Typography>}
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+            <Button variant="contained" startIcon={<ShoppingCart />} disabled={ownPublication || !book.available}
+              onClick={() => onAddToCart(book)} sx={{ bgcolor: '#1e3a5f', textTransform: 'none' }}>
+              {ownPublication ? 'Es tu publicación' : 'Añadir al carrito'}
+            </Button>
+            <IconButton aria-label={(favorite ? 'Quitar de favoritos ' : 'Guardar en favoritos ') + book.title}
+              aria-pressed={favorite} disabled={favoritesDisabled || !onFavorite} onClick={() => onFavorite(book)}>
+              {favorite ? <Favorite /> : <FavoriteBorder />}
+            </IconButton>
+          </Stack>
+        </Stack>
+      </Box>
+    </DialogContent>
+  </Dialog>;
 }

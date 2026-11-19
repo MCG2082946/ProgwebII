@@ -1,6 +1,6 @@
 // Modal de Inicio de Sesion y Registro de Usuario
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import ProfileNameFields from './ProfileNameFields';
 import { validateName } from '../profileName';
 import { API_URL } from '../api';
@@ -12,7 +12,6 @@ import {
   TextField,
   Button,
   IconButton,
-  Divider,
   Tab,
   Tabs,
   InputAdornment,
@@ -20,8 +19,6 @@ import {
 } from '@mui/material';
 import {
   Close as CloseIcon,
-  Google as GoogleIcon,
-  Facebook as FacebookIcon,
   Visibility,
   VisibilityOff
 } from '@mui/icons-material';
@@ -29,6 +26,8 @@ import {
 export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) {
   const [tabIndex, setTabIndex] = useState(0); 
   const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const pending = useRef(false);
 
   // Estados del formulario
   const [email, setEmail] = useState('');
@@ -45,6 +44,7 @@ export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (pending.current) return;
     setErrorMessage('');
 
     // Determinar endpoint según la pestaña (0: Login, 1: Registro)
@@ -55,7 +55,9 @@ export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) 
 
     const result = validateName(name);
     const errors = isRegistering ? { ...result.errors } : {};
-    if (!password || (isRegistering && password.length < 8)) errors.password = 'Indica una contraseña válida de al menos 8 caracteres para registrarte.';
+    if (!password) errors.password = 'Indica tu contraseña.';
+    else if (new TextEncoder().encode(password).length > 72) errors.password = 'La contraseña admite hasta 72 bytes.';
+    else if (isRegistering && password.length < 8) errors.password = 'Usa al menos 8 caracteres.';
     if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errors.email = 'Indica un correo válido de hasta 254 caracteres.';
     setFieldErrors(errors);
     if (Object.keys(errors).length) return;
@@ -63,6 +65,8 @@ export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) 
       ? { ...result.data, email: email.trim(), password }
       : { email, password };
 
+    pending.current = true;
+    setSubmitting(true);
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -87,9 +91,11 @@ export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) 
         setErrorMessage(msgError);
         setFieldErrors(data.campos || (response.status === 409 ? { email: msgError } : {}));
       }
-    } catch (error) {
-      console.error('Error de conexión:', error);
+    } catch {
       setErrorMessage('No se pudo conectar con el servidor. Intenta nuevamente.');
+    } finally {
+      pending.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -113,7 +119,7 @@ export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) 
         </IconButton>
       </Box>
 
-      <DialogContent sx={{ pt: 0, px: 3, pb: 3 }}>
+      <DialogContent sx={{ pt: 0, px: 3, pb: 2.5 }}>
         {/* LOGO DE LA TIENDA */}
         {logoPath && (
           <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
@@ -208,6 +214,7 @@ export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) 
 
           <Button
             type="submit"
+            disabled={submitting}
             fullWidth
             variant="contained"
             size="large"
@@ -221,42 +228,6 @@ export default function LoginModal({ open, onClose, onLoginSuccess, logoPath }) 
             }}
           >
             {tabIndex === 0 ? 'Iniciar Sesión' : 'Registrarme'}
-          </Button>
-        </Box>
-
-        <Divider sx={{ my: 3 }}>
-          <Typography variant="caption" sx={{ color: '#94a3b8' }}>
-            O continúa con
-          </Typography>
-        </Divider>
-
-        {/* Iniciar Sesión con Redes Sociales */}
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            fullWidth
-            variant="outlined"
-            startIcon={<GoogleIcon />}
-            sx={{
-              textTransform: 'none',
-              borderColor: '#cbd5e1',
-              color: '#334155',
-              '&:hover': { borderColor: '#94a3b8', backgroundColor: '#f8fafc' }
-            }}
-          >
-            Google
-          </Button>
-          <Button
-            fullWidth
-            variant="outlined"
-            startIcon={<FacebookIcon />}
-            sx={{
-              textTransform: 'none',
-              borderColor: '#cbd5e1',
-              color: '#334155',
-              '&:hover': { borderColor: '#94a3b8', backgroundColor: '#f8fafc' }
-            }}
-          >
-            Facebook
           </Button>
         </Box>
       </DialogContent>

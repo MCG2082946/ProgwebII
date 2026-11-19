@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Autocomplete,
   MenuItem,
   Box,
   Container,
@@ -40,7 +41,17 @@ import {
 import { useNavigate } from 'react-router-dom';
 import UserProfileModal from './components/UserProfileModal';
 import SellerReports from './components/SellerReports';
+import BookCover from './components/BookCover';
 import { apiRequest, loadCatalog } from './api';
+
+const coverFailure = 'No se pudo cargar la portada. Revisa el enlace de la imagen';
+function previewUrl(value = '') {
+  try {
+    const url = new URL(value.trim());
+    if (['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && value.trim().length <= 2048) return value.trim();
+  } catch { /* El servidor devolverá el error de formato junto al campo. */ }
+  return '';
+}
 
 export default function SellerPanel({ user, onUpdateUser, onLogout }) {
   const navigate = useNavigate();
@@ -51,29 +62,46 @@ export default function SellerPanel({ user, onUpdateUser, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [formError, setFormError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
-  const [categoryModal, setCategoryModal] = useState(false);
+  const [categoryModal, setCategoryModal] = useState(null);
   const [categoryName, setCategoryName] = useState('');
   const [categoryError, setCategoryError] = useState('');
+  const [categoryNameError, setCategoryNameError] = useState('');
   const [savingCategory, setSavingCategory] = useState(false);
   const categoryPending = useRef(false);
+  const canCreateCategory = ['vendedor', 'administrador'].includes(user.rol);
+  function openCategory(source) {
+    setCategoryName('');
+    setCategoryError('');
+    setCategoryNameError('');
+    setCategoryModal(source);
+  }
   const handleSaveCategory = async (event) => {
     event.preventDefault();
     if (categoryPending.current) return;
     if (!categoryName.trim() || categoryName.length > 200) {
-      setCategoryError('El nombre es obligatorio y debe tener como máximo 200 caracteres.');
+      setCategoryNameError('El nombre es obligatorio y debe tener como máximo 200 caracteres.');
       return;
     }
     categoryPending.current = true;
     setSavingCategory(true); setCategoryError('');
+    setCategoryNameError('');
     try {
       const { categoria } = await apiRequest('/categories', {
         method: 'POST', auth: true, body: { nombre: categoryName.trim() },
       });
-      setCategories((current) => [...current, categoria]);
-      setCategoryModal(false);
-    } catch (error) { setCategoryError(error.message); }
+      setCategories((current) => current.some((item) => item._id === categoria._id) ? current : [...current, categoria]);
+      if (categoryModal === 'book') {
+        setFormData((current) => ({ ...current, categoryIds: [...new Set([...current.categoryIds, categoria._id])] }));
+      }
+      setCategoryModal(null);
+    } catch (error) {
+      if (error.campos?.nombre) setCategoryNameError(error.campos.nombre);
+      else setCategoryError(error.message);
+    }
     finally { categoryPending.current = false; setSavingCategory(false); }
   };
   useEffect(() => {
@@ -92,27 +120,29 @@ export default function SellerPanel({ user, onUpdateUser, onLogout }) {
   const [openModal, setOpenModal] = useState(false);
   const [editingBook, setEditingBook] = useState(null);
   const [formData, setFormData] = useState({
-    title: '',
+    title: '', description: '',
     author: '',
     seller: user?.nombre || 'Mi Tienda',
     price: '',
-    cover: '', categoryId: '', stock: 0, tipoTapa: 'blanda', disponibilidad: true
+    cover: '', categoryIds: [], stock: 0, tipoTapa: 'blanda', disponibilidad: true
   });
 
   const handleOpenAdd = () => {
     setEditingBook(null); setFormError('');
+    setFieldErrors({}); setPreview(null);
     setFormData({
-      title: '',
+      title: '', description: '',
       author: '',
       seller: user?.nombre || 'Mi Tienda',
       price: '',
-      cover: '', categoryId: '', stock: 0, tipoTapa: 'blanda', disponibilidad: true
+      cover: '', categoryIds: [], stock: 0, tipoTapa: 'blanda', disponibilidad: true
     });
     setOpenModal(true);
   };
 
   const handleOpenEdit = (book) => {
     setEditingBook(book); setFormError('');
+    setFieldErrors({}); setPreview(null);
     setFormData(book);
     setOpenModal(true);
   };
@@ -126,18 +156,34 @@ export default function SellerPanel({ user, onUpdateUser, onLogout }) {
     finally { setBusy(false); }
   };
   const handleSave = async (e) => {
-    e.preventDefault(); setBusy(true); setFormError('');
+    e.preventDefault();
+    setFormError('');
+    const image = previewUrl(formData.cover);
+    if (image && image !== editingBook?.cover?.trim() && (preview?.url !== image || !preview.loaded)) {
+      setFieldErrors({ portada_url: preview?.url === image ? coverFailure : 'Espera a que cargue la vista previa de la portada.' });
+      return;
+    }
+    setFieldErrors({});
+    setBusy(true); setFormError('');
     try {
       await apiRequest('/books' + (editingBook ? '/' + editingBook.id : ''), {
         method: editingBook ? 'PATCH' : 'POST', auth: true,
-        body: { titulo: formData.title, autor: formData.author, precio: Number(formData.price),
-          portada_url: formData.cover || '', categoria: formData.categoryId,
-          stock: Number(formData.stock), tipoTapa: formData.tipoTapa, disponibilidad: formData.disponibilidad },
+        body: { titulo: formData.title, autor: formData.author, precio: formData.price === '' ? null : Number(formData.price),
+          ...(formData.description || editingBook?.description ? { descripcion: formData.description ?? '' } : {}),
+          portada_url: formData.cover || '', categoria: formData.categoryIds,
+          stock: formData.stock === '' ? null : Number(formData.stock), tipoTapa: formData.tipoTapa, disponibilidad: formData.disponibilidad },
       });
       setOpenModal(false); setReload((n) => n + 1);
-    } catch (error) { setFormError(error.message); }
+    } catch (error) {
+      if (error.campos) setFieldErrors(error.campos);
+      else setFormError(error.message);
+    }
     finally { setBusy(false); }
   };
+
+  const fieldProps = (key) => ({ error: Boolean(fieldErrors[key]), helperText: fieldErrors[key] });
+  const image = previewUrl(formData.cover);
+  const imageFailed = Boolean(image && preview?.url === image && !preview.loaded);
 
   const filteredBooks = books.filter(
     (b) =>
@@ -213,7 +259,7 @@ export default function SellerPanel({ user, onUpdateUser, onLogout }) {
         {showReports ? <SellerReports key={user?._id || user?.id} /> : <>
         {error && <Alert severity="error" action={<Button onClick={() => setReload((n) => n + 1)}>Reintentar</Button>}>{error}</Alert>}
         {!loading && !error && !categories.length && <Alert severity="info" action={
-          <Button onClick={() => { setCategoryName(''); setCategoryError(''); setCategoryModal(true); }}>Crear categoría</Button>
+          canCreateCategory && <Button onClick={() => openCategory('panel')}>Crear categoría</Button>
         }>No hay categorías. Crea una categoría para agregar libros.</Alert>}
         {/* TABLA DE PRODUCTOS */}
         <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
@@ -263,12 +309,7 @@ export default function SellerPanel({ user, onUpdateUser, onLogout }) {
                       
                       {/* 1. Imagen */}
                       <TableCell>
-                        <Avatar
-                          variant="rounded"
-                          src={book.cover}
-                          alt={book.title}
-                          sx={{ width: 48, height: 64, boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }}
-                        />
+                        <BookCover src={book.cover} title={book.title} width={48} height={64} />
                       </TableCell>
 
                       {/* 2. Título */}
@@ -321,17 +362,18 @@ export default function SellerPanel({ user, onUpdateUser, onLogout }) {
         </>}
       </Container>
 
-      <Dialog open={categoryModal} onClose={() => { if (!savingCategory) setCategoryModal(false); }}
+      <Dialog open={Boolean(categoryModal)} onClose={() => { if (!savingCategory) setCategoryModal(null); }}
         aria-labelledby="category-dialog-title" maxWidth="sm" fullWidth slotProps={{ paper: { sx: { borderRadius: 3 } } }}>
         <DialogTitle id="category-dialog-title" sx={{ backgroundColor: '#1e3a5f', color: 'white' }}>Crear categoría</DialogTitle>
         <Box component="form" onSubmit={handleSaveCategory} noValidate>
           <DialogContent sx={{ p: 3 }}>
             {categoryError && <Alert severity="error" sx={{ mb: 2 }}>{categoryError}</Alert>}
             <TextField autoFocus required fullWidth label="Nombre" value={categoryName} disabled={savingCategory}
-              onChange={(event) => setCategoryName(event.target.value)} />
+              error={Boolean(categoryNameError)} helperText={categoryNameError}
+              onChange={(event) => { setCategoryName(event.target.value); setCategoryNameError(''); }} />
           </DialogContent>
           <DialogActions sx={{ p: 2, px: 3 }}>
-            <Button disabled={savingCategory} onClick={() => setCategoryModal(false)} color="inherit">Cancelar</Button>
+            <Button disabled={savingCategory} onClick={() => setCategoryModal(null)} color="inherit">Cancelar</Button>
             <Button disabled={savingCategory} type="submit" variant="contained" sx={{ backgroundColor: '#1e3a5f' }}>
               {savingCategory ? 'Guardando...' : 'Guardar'}
             </Button>
@@ -348,21 +390,27 @@ export default function SellerPanel({ user, onUpdateUser, onLogout }) {
           </IconButton>
         </DialogTitle>
 
-        <Box component="form" onSubmit={handleSave}>
+        <Box component="form" onSubmit={handleSave} noValidate>
           <DialogContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
             {formError && <Alert severity="error">{formError}</Alert>}
-            <TextField select required label="Categoría" value={formData.categoryId} onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}>
-              {categories.map((c) => <MenuItem key={c._id} value={c._id}>{c.nombre}</MenuItem>)}
-            </TextField>
-            <TextField label="Stock" type="number" required value={formData.stock} slotProps={{ htmlInput: { min: 0, step: 1 } }} onChange={(e) => setFormData({ ...formData, stock: e.target.value })} />
-            <TextField select label="Encuadernación" value={formData.tipoTapa} onChange={(e) => setFormData({ ...formData, tipoTapa: e.target.value })}>
+            <Box>
+              <Autocomplete multiple options={categories} getOptionLabel={(category) => category.nombre}
+                getOptionKey={(category) => category._id} isOptionEqualToValue={(option, value) => option._id === value._id}
+                value={categories.filter((category) => formData.categoryIds.includes(category._id))}
+                onChange={(_, selected) => setFormData((current) => ({ ...current, categoryIds: selected.map((category) => category._id) }))}
+                renderInput={(params) => <TextField {...params} {...fieldProps('categoria')} label="Categorías" />} disabled={busy} />
+              {canCreateCategory && <Button type="button" onClick={() => openCategory('book')} disabled={busy}>+ Nueva categoría</Button>}
+            </Box>
+            <TextField label="Stock" {...fieldProps('stock')} type="number" required value={formData.stock} slotProps={{ htmlInput: { min: 0, step: 1 } }} onChange={(e) => setFormData({ ...formData, stock: e.target.value })} />
+            <TextField select label="Encuadernación" {...fieldProps('tipoTapa')} value={formData.tipoTapa} onChange={(e) => setFormData({ ...formData, tipoTapa: e.target.value })}>
               <MenuItem value="blanda">Tapa blanda</MenuItem><MenuItem value="dura">Tapa dura</MenuItem>
             </TextField>
-            <TextField select label="Disponibilidad" value={String(formData.disponibilidad)} onChange={(e) => setFormData({ ...formData, disponibilidad: e.target.value === 'true' })}>
+            <TextField select label="Disponibilidad" {...fieldProps('disponibilidad')} value={String(formData.disponibilidad)} onChange={(e) => setFormData({ ...formData, disponibilidad: e.target.value === 'true' })}>
               <MenuItem value="true">Disponible</MenuItem><MenuItem value="false">No disponible</MenuItem>
             </TextField>
             <TextField
               label="Título del Libro"
+              {...fieldProps('titulo')}
               fullWidth
               size="small"
               required
@@ -371,12 +419,15 @@ export default function SellerPanel({ user, onUpdateUser, onLogout }) {
             />
             <TextField
               label="Autor"
+              {...fieldProps('autor')}
               fullWidth
               size="small"
               required
               value={formData.author}
               onChange={(e) => setFormData({ ...formData, author: e.target.value })}
             />
+            <TextField label="Descripción" multiline minRows={2} {...fieldProps('descripcion')}
+              value={formData.description ?? ''} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
             <TextField
               label="Nombre del Vendedor / Tienda"
               fullWidth
@@ -388,6 +439,7 @@ export default function SellerPanel({ user, onUpdateUser, onLogout }) {
             />
             <TextField
               label="Precio ($ MXN)"
+              {...fieldProps('precio')}
               type="number"
               fullWidth
               size="small"
@@ -398,12 +450,26 @@ export default function SellerPanel({ user, onUpdateUser, onLogout }) {
             />
             <TextField
               label="URL de la Portada (Imagen)"
+              error={Boolean(fieldErrors.portada_url || imageFailed)}
+              helperText={fieldErrors.portada_url || (imageFailed ? coverFailure : 'Pega el enlace directo a la imagen.')}
               fullWidth
               size="small"
               placeholder="https://..."
-              value={formData.cover}
-              onChange={(e) => setFormData({ ...formData, cover: e.target.value })}
+              value={formData.cover ?? ''}
+              onChange={(e) => {
+                setFormData({ ...formData, cover: e.target.value });
+                setPreview(null);
+                setFieldErrors((current) => ({ ...current, portada_url: undefined }));
+              }}
             />
+            {image && !imageFailed && <Box component="img" key={image} src={image} alt="Vista previa de la portada"
+              referrerPolicy="no-referrer"
+              onLoad={() => {
+                setPreview({ url: image, loaded: true });
+                setFieldErrors((current) => ({ ...current, portada_url: undefined }));
+              }}
+              onError={() => setPreview({ url: image, loaded: false })}
+              sx={{ height: 150, width: '100%', objectFit: 'contain' }} />}
           </DialogContent>
 
           <DialogActions sx={{ p: 2, px: 3 }}>

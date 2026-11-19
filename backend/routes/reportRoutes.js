@@ -19,13 +19,17 @@ function inventoryReports(books) {
   const byCategory = new Map();
   const lowStock = [];
   for (const book of books) {
-    const categoryId = String(book.categoria?._id ?? '');
-    const category = book.categoria?.nombre ?? 'Sin categoría';
     const units = book.stock ?? 0;
-    if (!byCategory.has(categoryId)) byCategory.set(categoryId, { id: categoryId, category, titles: 0, units: 0 });
-    const totals = byCategory.get(categoryId);
-    totals.titles += 1;
-    totals.units += units;
+    const references = [book.categoria].flat().filter(Boolean);
+    const categories = new Map(references.map((reference) => [String(reference._id ?? reference), reference.nombre ?? 'Sin categoría']));
+    if (!categories.size) categories.set('', 'Sin categoría');
+    for (const [id, name] of categories) {
+      if (!byCategory.has(id)) byCategory.set(id, { id, category: name, titles: 0, units: 0 });
+      const totals = byCategory.get(id);
+      totals.titles += 1;
+      totals.units += units;
+    }
+    const category = [...categories.values()].join(', ');
     if (units <= lowStockThreshold) lowStock.push({ id: book._id, title: book.titulo, category, units });
   }
   return {
@@ -34,26 +38,29 @@ function inventoryReports(books) {
   };
 }
 
-async function orderReports(bookIds, from, to) {
+async function orderReports(sellerId, bookIds, from, to) {
   const ordersByStatus = [
     { status: 'Confirmados', orders: 0, units: 0 },
     { status: 'Pendientes', orders: 0, units: 0 },
   ];
   const ranking = new Map();
-  if (!bookIds.length) return { orders: [], ranking: [] };
-
   const owned = new Set(bookIds.map(String));
+  const seller = String(sellerId);
+  const ownership = [{ id_vendedor: sellerId }];
+  if (bookIds.length) ownership.push({ id_vendedor: { $exists: false }, id_libro: { $in: bookIds } });
   const orders = await Order.find({
     createdAt: { $gte: from, $lt: to },
     estado: { $in: reportStatuses },
-    'detalles.id_libro': { $in: bookIds },
-  }).select('estado detalles.id_libro detalles.titulo detalles.cantidad -_id')
+    detalles: { $elemMatch: { $or: ownership } },
+  }).select('estado detalles.id_libro detalles.id_vendedor detalles.titulo detalles.cantidad -_id')
     .sort({ createdAt: -1, _id: -1 }).lean();
 
   for (const order of orders) {
     const isConfirmed = confirmed.has(order.estado);
     const totals = ordersByStatus[isConfirmed ? 0 : 1];
-    const items = order.detalles.filter((item) => owned.has(String(item.id_libro)));
+    const items = order.detalles.filter((item) => Object.hasOwn(item, 'id_vendedor')
+      ? String(item.id_vendedor) === seller
+      : owned.has(String(item.id_libro)));
     if (!items.length) continue;
     totals.orders += 1;
     for (const item of items) {
@@ -74,15 +81,17 @@ async function orderReports(bookIds, from, to) {
 router.get('/', authenticate, authorize('vendedor'), async (req, res) => {
   const start = parseDay(req.query.desde);
   const end = parseDay(req.query.hasta);
-  if (!start || !end || start > end) throw httpError(400, 'Indica un rango de fechas válido.');
+  if (Object.keys(req.query).some((key) => !['desde', 'hasta'].includes(key)) || !start || !end || start > end) {
+    throw httpError(400, 'Indica un rango de fechas válido.');
+  }
   end.setUTCDate(end.getUTCDate() + 1);
 
   const books = await Book.find({ id_vendedor: req.user._id })
-    .select('titulo stock categoria').populate('categoria', 'nombre').lean();
+    .select('titulo stock categoria').populate('categoria', 'nombre');
   res.json({
     lowStockThreshold,
     ...inventoryReports(books),
-    ...await orderReports(books.map((book) => book._id), start, end),
+    ...await orderReports(req.user._id, books.map((book) => book._id), start, end),
   });
 });
 
